@@ -1,10 +1,9 @@
-# robot.py
+# robot.py (aka main.py)
 """
 MicroPython code for PicoBot project
 * Raspberry Pi Pico mounted on differential drive robot
 * 56:1 gear motors
-* 1 BLE UART Friend module for bi-directional comm
-* between laptop & robot
+* 1 BLE UART Friend module for bi-directional comm w laptop
 * Circular Array of Distance Sensors (VL53L0X)
 * SparkFun OTOS reports pose (x, y, heading)
     * initially (0, 0, 0)
@@ -242,7 +241,7 @@ class Robot():
             while self.run:
                 # read distances from VCSEL sensors
                 distances = dsa.read_all()
-                print(distances)
+                # print(distances)
                 if len(distances) == 7:
                     dist_L = distances[0]
                     dist_R = distances[6]
@@ -300,9 +299,7 @@ class Robot():
                     if self.mode == 'A':
                         send_json({
                             "pose": list(pose),
-                            "dist_L": dist_L,
-                            "dist_R": dist_R,
-                            "dist_F": dist_F,
+                            "distances": distances,
                             "errors": self.errors,
                             "goal_dist": goal_dist,
                             "goal_angle": goal_angle,
@@ -310,9 +307,7 @@ class Robot():
                     elif self.mode == 'T':
                         send_json({
                             "pose": list(pose),
-                            "dist_L": dist_L,
-                            "dist_R": dist_R,
-                            "dist_F": dist_F,
+                            "distances": distances,
                             "errors": self.errors,
                             })
 
