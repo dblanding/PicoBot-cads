@@ -1,0 +1,44 @@
+Sensor measured distances to target located 381 mm (15") from robot center.
+measured value + OFFSET = robot cntr to target distance
+
+A
+Max = 368
+Min = 358
+Avg = 362.0
+OFFSET_A = 19
+
+B
+Max = 363
+Min = 352
+Avg = 357.25
+OFFSET_B = 24
+
+C
+Max = 373
+Min = 359
+Avg = 365.825
+OFFSET_C = 15
+
+D
+Max = 371
+Min = 362
+Avg = 366.15
+OFFSET_D = 15
+
+E
+Max = 371
+Min = 361
+Avg = 365.55
+OFFSET_E = 15
+
+F
+Max = 375
+Min = 367
+Avg = 371.15
+OFFSET_F = 10
+
+G
+Max = 365
+Min = 355
+Avg = 360.625
+OFFSET_G = 20
