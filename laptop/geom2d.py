@@ -15,10 +15,10 @@ def r2p(x, y):
     return (r, theta)
 
 
-def pt_coords(pose, dist, sensor):
+def pt_coords(pose, dist, rel_ang):
     """Representing vectors as complex numbers, calculate &
     return (x, y) coords of point detected by robot at pose,
-    measured distance = dist by sensor = 'R' | 'L' | 'F'
+    measured distance, rel_ang (radians)'
     """
     xr, yr, ar = pose
 
@@ -27,12 +27,7 @@ def pt_coords(pose, dist, sensor):
 
     b = dist  # measured dist from robot to point
 
-    if sensor == 'R':
-        beta = ar - pi/2
-    elif sensor == 'L':
-        beta = ar + pi/2
-    else:
-        beta = ar
+    beta = ar + rel_ang
 
     delta = atan2(a * sin(alpha) + b * sin(beta),
                   a * cos(alpha) + b * cos(beta))
@@ -42,8 +37,8 @@ def pt_coords(pose, dist, sensor):
     return p2r(d, delta)
 
 if __name__ == "__main__":
-    pose = (4, 4, pi/4)
-    dist = 2.0
-    print("point on right at coords", pt_coords(pose, dist, 'R'))
-    print("point on left at coords", pt_coords(pose, dist, 'L'))
-    print("point in front at coords", pt_coords(pose, dist, 'F'))
+    pose = (2, 2, pi/4)
+    dist = 2 * sqrt(2)
+    print("point on right at coords", pt_coords(pose, dist, -pi/2))
+    print("point on left at coords", pt_coords(pose, dist, pi/2))
+    print("point in front at coords", pt_coords(pose, dist, 0))

@@ -4,13 +4,14 @@ from datetime import datetime
 import json
 from pprint import pprint
 import numpy as np
+from math import pi
 import matplotlib.pyplot as plt
 from matplotlib.widgets import Button
 from geom2d import pt_coords
 from robot_ble_connection import BleConnection
 import struct
 
-# Offset between sensor values and actual distance to robot center
+# Offset + sensor value = actual distance to robot center
 OFFSETS = [19, 24, 15, 15, 15, 10, 20]
 
 waypoints_file = "waypoints.txt"
@@ -83,25 +84,32 @@ class RobotDisplay:
                 self.poses = np.array(self.pose_list, dtype=np.float32)
             if "distances" in message:
                 distances = message["distances"]
+                # Process distance data from VCSEL sensors
                 corrected_dists = []
+                pt_locations = []
                 for idx in range(len(distances)):
-                    corrected_value = distances[idx] + OFFSETS[idx]
-                    corrected_dists.append(corrected_value)
-                l_dist = corrected_dists[0]
-                if l_dist < 1500:
-                    l_point = pt_coords(pose, l_dist/1000, 'L')
-                    self.l_pnts_list.append(l_point)
-                    self.l_pnts = np.array(self.l_pnts_list, dtype=np.float32)
-                f_dist = corrected_dists[3]
-                if f_dist < 1500:
-                    f_point = pt_coords(pose, f_dist/1000, 'F')
-                    self.f_pnts_list.append(f_point)
-                    self.f_pnts = np.array(self.f_pnts_list, dtype=np.float32)
-                r_dist = corrected_dists[6]
-                if r_dist < 1500:
-                    r_point = pt_coords(pose, r_dist/1000, 'R')
-                    self.r_pnts_list.append(r_point)
-                    self.r_pnts = np.array(self.r_pnts_list, dtype=np.float32)
+                    if distances[idx] < 1500:
+                        corrected_value = distances[idx] + OFFSETS[idx]
+                        corrected_dists.append(corrected_value)
+                        rel_angle = pi/2 - idx * pi/6
+                        xy_coords = pt_coords(pose, corrected_value/1000, rel_angle)
+                        pt_locations.append(xy_coords)
+                        # Sensor A (Left looking)
+                        if idx == 0:
+                            self.l_pnts_list.append(xy_coords)
+                            self.l_pnts = np.array(self.l_pnts_list, dtype=np.float32)
+                        # Sensor D (forward looking)
+                        elif idx == 3:
+                            self.f_pnts_list.append(xy_coords)
+                            self.f_pnts = np.array(self.f_pnts_list, dtype=np.float32)
+                        # Sensor G (right looking)
+                        elif idx == 6:
+                            self.r_pnts_list.append(xy_coords)
+                            self.r_pnts = np.array(self.r_pnts_list, dtype=np.float32)
+                    else:
+                        corrected_dists.append(None)
+                        pt_locations.append(None)
+                    
 
     def draw(self):
         self.axes.clear()
