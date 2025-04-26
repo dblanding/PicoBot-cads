@@ -44,10 +44,20 @@ class RobotDisplay:
         self.poses = None
         self.r_pnts_list = []
         self.r_pnts = None
+        self.r30_pnts_list = []
+        self.r30_pnts = None
+        self.r60_pnts_list = []
+        self.r60_pnts = None
         self.l_pnts_list = []
         self.l_pnts = None
+        self.l30_pnts_list = []
+        self.l30_pnts = None
+        self.l60_pnts_list = []
+        self.l60_pnts = None
         self.f_pnts_list = []
         self.f_pnts = None
+        self.fwd_pnts_list = []
+        self.fwd_pnts = None
 
     def handle_close(self, _):
         self.closed = True
@@ -86,7 +96,7 @@ class RobotDisplay:
                 distances = message["distances"]
                 # Process distance data from VCSEL sensors
                 corrected_dists = []
-                pt_locations = []
+                pt_locations = []  # global coords of detected points
                 for idx in range(len(distances)):
                     if distances[idx] < 1500:
                         corrected_value = distances[idx] + OFFSETS[idx]
@@ -98,18 +108,42 @@ class RobotDisplay:
                         if idx == 0:
                             self.l_pnts_list.append(xy_coords)
                             self.l_pnts = np.array(self.l_pnts_list, dtype=np.float32)
+                        # Sensor B (Left 30 deg fwd looking)
+                        if idx == 1:
+                            self.l30_pnts_list.append(xy_coords)
+                            self.l30_pnts = np.array(self.l30_pnts_list, dtype=np.float32)
+                        # Sensor C (Left 60 deg fwd looking)
+                        if idx == 2:
+                            self.l60_pnts_list.append(xy_coords)
+                            self.l60_pnts = np.array(self.l60_pnts_list, dtype=np.float32)
                         # Sensor D (forward looking)
                         elif idx == 3:
                             self.f_pnts_list.append(xy_coords)
                             self.f_pnts = np.array(self.f_pnts_list, dtype=np.float32)
+                        # Sensor E (Right 60 deg fwd looking)
+                        if idx == 4:
+                            self.r60_pnts_list.append(xy_coords)
+                            self.r60_pnts = np.array(self.r60_pnts_list, dtype=np.float32)
+                        # Sensor F (Right 30 deg fwd looking)
+                        if idx == 5:
+                            self.r30_pnts_list.append(xy_coords)
+                            self.r30_pnts = np.array(self.r30_pnts_list, dtype=np.float32)
                         # Sensor G (right looking)
                         elif idx == 6:
                             self.r_pnts_list.append(xy_coords)
                             self.r_pnts = np.array(self.r_pnts_list, dtype=np.float32)
-                    else:
-                        corrected_dists.append(None)
-                        pt_locations.append(None)
-                    
+
+                """
+                # generate (fictional) 1500 mm perimeter points from all sensors
+                perimeter_points = []
+                for idx in range(7):
+                    rel_angle = pi/2 - idx * pi/6
+                    xy_coords = pt_coords(pose, 1.5, rel_angle)
+                    perimeter_points.append(xy_coords)
+                # list only 5 forward looking sensors (remove A & G)
+                self.fwd_pnts_list = perimeter_points[1:-1]
+                self.fwd_pnts = np.array(self.fwd_pnts_list, dtype=np.float32)
+                """
 
     def draw(self):
         self.axes.clear()
@@ -123,11 +157,23 @@ class RobotDisplay:
         if self.poses is not None:
             self.axes.scatter(self.poses[:,0], self.poses[:,1], color="blue")
         if self.r_pnts is not None:
-            self.axes.scatter(self.r_pnts[:,0], self.r_pnts[:,1], color="green")
+            self.axes.scatter(self.r_pnts[:,0], self.r_pnts[:,1], color="darkgreen")
+        if self.r30_pnts is not None:
+            self.axes.scatter(self.r30_pnts[:,0], self.r30_pnts[:,1], color="lime")
+        if self.r60_pnts is not None:
+            self.axes.scatter(self.r60_pnts[:,0], self.r60_pnts[:,1], color="yellowgreen")
         if self.l_pnts is not None:
-            self.axes.scatter(self.l_pnts[:,0], self.l_pnts[:,1], color="red")
+            self.axes.scatter(self.l_pnts[:,0], self.l_pnts[:,1], color="darkred")
+        if self.l30_pnts is not None:
+            self.axes.scatter(self.l30_pnts[:,0], self.l30_pnts[:,1], color="crimson")
+        if self.l60_pnts is not None:
+            self.axes.scatter(self.l60_pnts[:,0], self.l60_pnts[:,1], color="pink")
         if self.f_pnts is not None:
             self.axes.scatter(self.f_pnts[:,0], self.f_pnts[:,1], color="yellow")
+        """
+        if self.fwd_pnts is not None:
+            self.axes.scatter(self.fwd_pnts[:,0], self.fwd_pnts[:,1], color="cyan")
+        """
         
     async def send_waypoint(self, point):
         wp_req = "!W".encode('utf8') + (json.dumps(point) + "\n").encode()
