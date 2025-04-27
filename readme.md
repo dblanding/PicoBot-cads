@@ -4,6 +4,10 @@
     * I needed  a couple of 3D printed parts for the sensor array.
     * I wanted to make sure the sensor array ended up at the right height to match the lower shelf of the furniture in my living room.
 
+
+https://github.com/user-attachments/assets/53fcd333-3603-44a6-9623-7bde302bacb5
+
+
 ![PicoBot-cads](imgs/picobot-cads.jpeg)
 
 ## Circular Array of Distance Sensors
