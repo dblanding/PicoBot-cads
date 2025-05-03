@@ -7,6 +7,7 @@ import numpy as np
 from math import pi
 import matplotlib.pyplot as plt
 from matplotlib.widgets import Button
+import pickle
 from geom2d import pt_coords
 from robot_ble_connection import BleConnection
 import struct
@@ -15,6 +16,7 @@ import struct
 OFFSETS = [19, 24, 15, 15, 15, 10, 20]
 
 waypoints_file = "waypoints.txt"
+data_file = "saved_data.pkl"
 
 def read_waypoints(wp_file):
     """Load waypoints from file"""
@@ -196,6 +198,19 @@ class RobotDisplay:
     def stop(self, _):
         self.button_task = asyncio.create_task(self.send_command("!S"))
 
+    def save_data(self, ):
+        data = {"poses": self.poses,
+                "r_pnts": self.r_pnts,
+                "r30_pnts": self.r30_pnts,
+                "r60_pnts": self.r60_pnts,
+                "l_pnts": self.l_pnts,
+                "l30_pnts": self.l30_pnts,
+                "l60_pnts": self.l60_pnts,
+                "f_pnts": self.f_pnts,
+                }
+        with open(data_file, 'wb') as file:
+            pickle.dump(data, file)
+
     async def main(self):
         plt.ion()
         await self.ble_connection.connect()
@@ -220,6 +235,7 @@ class RobotDisplay:
                 plt.pause(0.05)
                 await asyncio.sleep(0.01)
         finally:
+            self.save_data()
             await self.ble_connection.close()
 
 
