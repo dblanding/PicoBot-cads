@@ -118,8 +118,10 @@ def check_pose(prev_pose):
     return (is_moving, curr_pose)
 
 def get_yaw_rate():
-    vel = myOtos.getVelocity()
-    return vel.h
+    """https://github.com/sparkfun/qwiic_otos_py/tree/master/examples"""
+    vel = myOtos.getVelocity()  # gyro data
+    hdg_rate = vel.h  # rad/sec
+    return hdg_rate
 
 def send_json(data):
     uart.write((json.dumps(data) + "\n").encode())
@@ -182,10 +184,12 @@ class Robot():
         self.lin_spd = 0.7  # nominal drive speed
         self.ang_spd = 0  # prev value ang_spd only when stuck
         self.run = True
-        self.mode = 'A'  # 'T' for tele-op, 'A' for auto (waypoints) 
+        self.mode = 'A'  # 'T' for test, 'A' for auto (waypoints) 
         self.errors = []
         self.prev_pose = (0, 0, 0)
         self.wp_idx = 0  # index of first waypoint
+        self.prev_time = None
+        self.cum_ang = None
 
     def auto(self):
         """Set mode to drive auto follow waypoints."""
@@ -257,25 +261,30 @@ class Robot():
                 _, _, yaw = pose
                 gz = get_yaw_rate()
 
-                # Drive in tele-op mode
+                # Drive in test mode
+                # Turn full turn CW from angle=0 to angle=0
                 if self.mode == 'T':
-                    if uart.any() > 0:
-                        try:
-                            # get Bluetooth command
-                            bytestring = uart.readline()
-                            data_type = bytestring[:2].decode()
-                            bin_value = bytestring[2:14]
-                            if data_type == '!A':  # accelerometer data
-                                x, y, z = struct.unpack('3f', bin_value)
-                                self.lin_spd = y * JS_GAIN
-                                self.ang_spd = -x * JS_GAIN
-                                print(self.lin_spd, self.ang_spd)
-                                
-                        except Exception as e:
-                            self.errors.append(e)
-
-                        # send commands to motors
-                        motors.drive_motors(self.lin_spd, self.ang_spd)
+                    curr_time = time.ticks_ms()
+                    if not self.prev_time:  # initialize
+                        self.prev_time = curr_time
+                        self.cum_ang = 0
+                    else:
+                        delta_time = (curr_time - self.prev_time)/1000  # (sec)
+                        self.prev_time = curr_time
+                        self.cum_ang += (gz * (delta_time))
+                        print(delta_time)
+                        # Use gyro data to turn past the pi/-pi discontinuity
+                        if self.cum_ang < pi * 3/2:
+                            # print("initial phase", self.cum_ang, yaw)
+                            motors.drive_motors(0, MAX_ANG_SPD)
+                        else: # use turn() function for final 1/4 turn                       
+                            # print("final phase", self.cum_ang, yaw)
+                            goal_angle = 0
+                            ang_spd = self.turn(goal_angle, gz, yaw)
+                            motors.drive_motors(0, ang_spd)
+                            if not ang_spd:
+                                # self.prev_time = None
+                                self.stop()
 
                 # Drive autonomously to sequence of waypoints
                 elif self.mode == 'A':
@@ -292,7 +301,8 @@ class Robot():
                         self.wp_idx += 1
                         if self.wp_idx == len(waypoints):
                             # No more waypoints
-                            self.stop()
+                            # Do a full CW turn in place
+                            self.mode = 'T'
 
                 # If robot is moving, send robot data to laptop
                 if is_moving:
@@ -341,6 +351,12 @@ async def command_handler(robot):
                 elif cmd == '!S':
                     print("Received STOP request")
                     robot.stop()
+                elif cmd == '!T':
+                    print("Received Tele request")
+                    self.mode = 'T'
+                elif cmd == '!A':
+                    print("Received Tele request")
+                    self.mode = 'A'
 
             except Exception as e:
                 robot.errors.append(e)
