@@ -17,8 +17,6 @@ MAX_ANG_SPD = 0.7
 P_TURN_GAIN = 8.0  # Proportional Gain
 D_TURN_GAIN = 0.5  # Derivative Gain
 
-# threshold min distance (m) to detect motion has occurred
-MIN_DIST = 0.002
-
-# line spacing of parallel line S&R pattern
-SWATH_PITCH = 0.42  # (m)
+# threshold for detectable motion
+MIN_DIST = 0.002  # meters
+MIN_ANGLE = 0.004  # radians

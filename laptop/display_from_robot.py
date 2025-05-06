@@ -31,7 +31,7 @@ def read_waypoints(wp_file):
     return waypoints
 
 waypoints = read_waypoints(waypoints_file)
-
+waypogen = (pnt for pnt in waypoints)
 
 class RobotDisplay:
     def __init__(self):
@@ -60,6 +60,7 @@ class RobotDisplay:
         self.f_pnts = None
         self.fwd_pnts_list = []
         self.fwd_pnts = None
+        self.robot_is_ready = True
 
     def handle_close(self, _):
         self.closed = True
@@ -80,16 +81,10 @@ class RobotDisplay:
             except ValueError:
                 print("Error parsing JSON")
                 return
-            if "wp_len" in message:  # robot reporting len(waypoints)
-                # This is the first message sent from PicoBot
-                now = datetime.now()
-                correct_len = len(self.wp_list)
-                robot_len = message["wp_len"]
-                if robot_len == correct_len:
-                    print(f"All {correct_len} waypoints sent to robot", now)
-                else:
-                    print(f"Robot has {robot_len} points, should have {correct_len}")
-
+            if "status" in message:
+                if message["status"] == "READY":
+                    self.robot_is_ready = True
+                    #self.send_waypoint(next(waypogen))
             if "pose" in message:
                 pose = message["pose"]
                 self.pose_list.append(pose)
@@ -135,17 +130,6 @@ class RobotDisplay:
                             self.r_pnts_list.append(xy_coords)
                             self.r_pnts = np.array(self.r_pnts_list, dtype=np.float32)
 
-                """
-                # generate (fictional) 1500 mm perimeter points from all sensors
-                perimeter_points = []
-                for idx in range(7):
-                    rel_angle = pi/2 - idx * pi/6
-                    xy_coords = pt_coords(pose, 1.5, rel_angle)
-                    perimeter_points.append(xy_coords)
-                # list only 5 forward looking sensors (remove A & G)
-                self.fwd_pnts_list = perimeter_points[1:-1]
-                self.fwd_pnts = np.array(self.fwd_pnts_list, dtype=np.float32)
-                """
 
     def draw(self):
         self.axes.clear()
@@ -178,25 +162,28 @@ class RobotDisplay:
         """
         
     async def send_waypoint(self, point):
-        wp_req = "!W".encode('utf8') + (json.dumps(point) + "\n").encode()
-        await self.ble_connection.send_uart_data(wp_req)
+        if self.robot_is_ready:
+            wp_req = "!DWP".encode('utf8') + (json.dumps(point) + "\n").encode()
+            print(f"Sending waypoint to robot: {wp_req}")
+            await self.ble_connection.send_uart_data(wp_req)
+            self.robot_is_ready = False
 
     async def send_command(self, code):
         request = (code + "\n").encode('utf8')
         print(f"Sending request: {request}")
         await self.ble_connection.send_uart_data(request)
 
-    def auto(self, _):
-        self.button_task = asyncio.create_task(self.send_command("!A"))
+    def wapo(self, _):
+        self.button_task = asyncio.create_task(self.send_waypoint(next(waypogen)))
 
-    def tele(self, _):
-        self.button_task = asyncio.create_task(self.send_command("!T"))
+    def turn(self, _):
+        self.button_task = asyncio.create_task(self.send_command("!TRA"))
 
     def run(self, _):
-        self.button_task = asyncio.create_task(self.send_command("!R"))
+        self.button_task = asyncio.create_task(self.send_command("!RUN"))
 
     def stop(self, _):
-        self.button_task = asyncio.create_task(self.send_command("!S"))
+        self.button_task = asyncio.create_task(self.send_command("!STP"))
 
     def save_data(self, ):
         data = {"poses": self.poses,
@@ -215,16 +202,16 @@ class RobotDisplay:
         plt.ion()
         await self.ble_connection.connect()
         try:
-            print("Sending waypoints to robot")
+            '''
             for point in waypoints:
-                await self.send_waypoint(point)
-            print("Confirming receipt of all waypoints")
-            await self.send_command("!C")
+                if self.robot_is_ready:
+                    await self.send_waypoint(point)
+            '''
             self.fig.canvas.mpl_connect("close_event", self.handle_close)
-            tele_button = Button(plt.axes([0.2, 0.85, 0.1, 0.075]), "Tele")
-            tele_button.on_clicked(self.tele)
-            auto_button = Button(plt.axes([0.4, 0.85, 0.1, 0.075]), "Auto")
-            auto_button.on_clicked(self.auto)
+            turn_button = Button(plt.axes([0.2, 0.85, 0.1, 0.075]), "Turn")
+            turn_button.on_clicked(self.turn)
+            wapo_button = Button(plt.axes([0.4, 0.85, 0.1, 0.075]), "WaPo")
+            wapo_button.on_clicked(self.wapo)
             run_button = Button(plt.axes([0.6, 0.85, 0.1, 0.075]), "Run")
             run_button.on_clicked(self.run)
             stop_button = Button(plt.axes([0.8, 0.85, 0.1, 0.075]), "Stop")
