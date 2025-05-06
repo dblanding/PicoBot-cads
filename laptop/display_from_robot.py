@@ -30,8 +30,8 @@ def read_waypoints(wp_file):
                 waypoints.append(wp)
     return waypoints
 
-waypoints = read_waypoints(waypoints_file)
-waypogen = (pnt for pnt in waypoints)
+waypoints = read_waypoints(waypoints_file)  # list
+waypogen = (pnt for pnt in waypoints)  # generator
 
 class RobotDisplay:
     def __init__(self):
@@ -84,7 +84,11 @@ class RobotDisplay:
             if "status" in message:
                 if message["status"] == "READY":
                     self.robot_is_ready = True
-                    #self.send_waypoint(next(waypogen))
+                    try:
+                        self.wapo(1)
+                        print("Driving to next waypoint")
+                    except StopIteration:
+                        print("No more waypoints")
             if "pose" in message:
                 pose = message["pose"]
                 self.pose_list.append(pose)
@@ -156,10 +160,6 @@ class RobotDisplay:
             self.axes.scatter(self.l60_pnts[:,0], self.l60_pnts[:,1], color="pink")
         if self.f_pnts is not None:
             self.axes.scatter(self.f_pnts[:,0], self.f_pnts[:,1], color="yellow")
-        """
-        if self.fwd_pnts is not None:
-            self.axes.scatter(self.fwd_pnts[:,0], self.fwd_pnts[:,1], color="cyan")
-        """
         
     async def send_waypoint(self, point):
         if self.robot_is_ready:
@@ -202,11 +202,6 @@ class RobotDisplay:
         plt.ion()
         await self.ble_connection.connect()
         try:
-            '''
-            for point in waypoints:
-                if self.robot_is_ready:
-                    await self.send_waypoint(point)
-            '''
             self.fig.canvas.mpl_connect("close_event", self.handle_close)
             turn_button = Button(plt.axes([0.2, 0.85, 0.1, 0.075]), "Turn")
             turn_button.on_clicked(self.turn)
