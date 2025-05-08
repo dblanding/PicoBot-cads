@@ -33,6 +33,9 @@ def read_waypoints(wp_file):
 waypoints = read_waypoints(waypoints_file)  # list
 waypogen = (pnt for pnt in waypoints)  # generator
 
+turn_goals = [pi/2, -pi/2, -pi, 0]
+turngen = ([hdg, ] for hdg in turn_goals)  # generator
+
 class RobotDisplay:
     def __init__(self):
         self.ble_connection = BleConnection(self.handle_data)
@@ -85,10 +88,12 @@ class RobotDisplay:
                 if message["status"] == "READY":
                     self.robot_is_ready = True
                     try:
-                        self.wapo(1)
-                        print("Driving to next waypoint")
+                        self.turn(1)
+                        print("Making next turn")
+                        #print("Driving to next waypoint")
                     except StopIteration:
-                        print("No more waypoints")
+                        print("No more turns")
+                        #print("No more waypoints")
             if "pose" in message:
                 pose = message["pose"]
                 self.pose_list.append(pose)
@@ -168,6 +173,13 @@ class RobotDisplay:
             await self.ble_connection.send_uart_data(wp_req)
             self.robot_is_ready = False
 
+    async def send_turn_gh(self, hdg):
+        if self.robot_is_ready:
+            reqst = "!TGH".encode('utf8') + struct.pack('f', hdg) + ("\n").encode()
+            print(f"Sending Goal Heading to robot: {reqst}")
+            await self.ble_connection.send_uart_data(reqst)
+            self.robot_is_ready = False
+
     async def send_command(self, code):
         request = (code + "\n").encode('utf8')
         print(f"Sending request: {request}")
@@ -177,7 +189,7 @@ class RobotDisplay:
         self.button_task = asyncio.create_task(self.send_waypoint(next(waypogen)))
 
     def turn(self, _):
-        self.button_task = asyncio.create_task(self.send_command("!TRA"))
+        self.button_task = asyncio.create_task(self.send_turn_gh(next(turngen)[0]))
 
     def run(self, _):
         self.button_task = asyncio.create_task(self.send_command("!RUN"))

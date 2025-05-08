@@ -58,11 +58,8 @@ my_bus = qwiic_i2c.get_i2c_driver(sda=14, scl=15, freq=100000)
 myOtos = qwiic_otos.QwiicOTOS(23, my_bus)
 print("\nSetting up OTOS\n")
 
-# Perform the self test
-result = myOtos.selfTest()
-    
 # Check if the self test passed
-if(result == True):
+if myOtos.selfTest():
     print("Self test passed!")
 else:
     print("Self test failed!")
@@ -77,7 +74,6 @@ print("Ensure the OTOS is flat and stationary during calibration!")
 for i in range(5, 0, -1):
     print("Calibrating in %d seconds..." % i)
     time.sleep(1)
-
 print("Calibrating IMU...")
 
 # Calibrate the IMU, which removes the accelerometer and gyroscope offsets
@@ -169,7 +165,7 @@ def rel_polar_coords_to_pt(curr_pose, point):
     # Relative angle to goal point
     rel_angle = theta - a0
 
-    # ensure angle is between -pi/2 and +pi/2
+    # Ensure angle is between -pi and +pi
     if rel_angle < -pi:
         rel_angle += 2 * pi
     elif rel_angle > pi:
@@ -273,7 +269,7 @@ class Robot():
                             self.mode = 'IDL'
 
                 elif self.mode == 'TGH':  # Turn in place to a global heading
-                    ang_spd = self.turn(self.goal_heading, gz, yaw)
+                    ang_spd = self.turn_to_heading(self.goal_heading, gz, yaw)
                     motors.drive_motors(0, ang_spd)
                     if not ang_spd:  # arrived at goal heading
                         motors.move_stop()
@@ -328,7 +324,9 @@ async def command_handler(robot):
             try:
                 # Handle Bluetooth request
                 bytestring = uart.readline()
+                print(bytestring)
                 cmd = bytestring[:4].decode('utf8')
+                print(cmd)
                 if cmd == '!RUN':
                     print("Received Run request, starting robot")
                     if not robot_task:
@@ -339,7 +337,9 @@ async def command_handler(robot):
                     print("Received DWP request")
                     robot.mode = 'DWP'
                 elif cmd == '!TGH':
-                    robot.goal_heading = json.loads(bytestring[4:])
+                    goal_hdg = struct.unpack('f', bytestring[4:-1])[0]
+                    print(goal_hdg)
+                    robot.goal_heading = goal_hdg
                     print("Received TGH request")
                     robot.mode = 'TGH'
                 elif cmd == '!TRA':
