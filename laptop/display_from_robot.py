@@ -1,48 +1,34 @@
-import arena
 import asyncio
 from datetime import datetime
 import json
 from pprint import pprint
-import numpy as np
 from math import pi
 import matplotlib.pyplot as plt
 from matplotlib.widgets import Button
+import numpy as np
 import pickle
+import struct
+
+import arena
+from drive_instrux import instrux_list
 from geom2d import pt_coords
 from robot_ble_connection import BleConnection
-import struct
 
 # Offset + sensor value = actual distance to robot center
 OFFSETS = [19, 24, 15, 15, 15, 10, 20]
 
-waypoints_file = "waypoints.txt"
+# Saved data file
 data_file = "saved_data.pkl"
 
-def read_waypoints(wp_file):
-    """Load waypoints from file"""
-    waypoints = []
-    with open(wp_file) as f:
-        lines = f.readlines()
-        for line in lines:
-            if ',' in line:
-                str_x, str_y = line.split(',')
-                wp = float(str_x), float(str_y)
-                waypoints.append(wp)
-    return waypoints
-
-waypoints = read_waypoints(waypoints_file)  # list
-waypogen = (pnt for pnt in waypoints)  # generator
-
-turn_goals = [pi/2, -pi/2, -pi, 0]
-turngen = ([hdg, ] for hdg in turn_goals)  # generator
+instrux_gen = (drive_dict for drive_dict in instrux_list)  # generator
 
 class RobotDisplay:
     def __init__(self):
         self.ble_connection = BleConnection(self.handle_data)
         self.buffer = ""
         self.arena = {"arena": arena.boundary_lines,}
-        self.wp_list = waypoints
-        self.waypoints = np.array(self.wp_list, dtype=np.float32)
+        self.wp_list = []
+        self.waypoints = None
         self.closed = False
         self.fig, self.axes = plt.subplots()
         self.pose_list = []
@@ -88,12 +74,10 @@ class RobotDisplay:
                 if message["status"] == "READY":
                     self.robot_is_ready = True
                     try:
-                        self.turn(1)
-                        print("Making next turn")
-                        #print("Driving to next waypoint")
+                        self.drive(1)
+                        print("Starting next drive instruction")
                     except StopIteration:
-                        print("No more turns")
-                        #print("No more waypoints")
+                        print("No more drive instructions")
             if "pose" in message:
                 pose = message["pose"]
                 self.pose_list.append(pose)
@@ -180,10 +164,29 @@ class RobotDisplay:
             await self.ble_connection.send_uart_data(reqst)
             self.robot_is_ready = False
 
+    async def send_instruct(self, ):
+        if self.robot_is_ready:
+            try:
+                instruction = next(instrux_gen)
+                print(instruction)
+                (cmd, val), = instruction.items()
+                if "WP" in cmd:
+                    reqst = cmd.encode('utf8') + (json.dumps(val) + "\n").encode('utf8')
+                else:
+                    reqst = cmd.encode('utf8') + struct.pack('f', val) + ("\n").encode('utf8')
+                print(f"Sending Drive Instruction to robot: {reqst}")
+                await self.ble_connection.send_uart_data(reqst)
+                self.robot_is_ready = False
+            except StopIteration:
+                print("No more Driving Instructions")
+
     async def send_command(self, code):
         request = (code + "\n").encode('utf8')
         print(f"Sending request: {request}")
         await self.ble_connection.send_uart_data(request)
+
+    def drive(self, _):
+        self.button_task = asyncio.create_task(self.send_instruct())
 
     def wapo(self, _):
         self.button_task = asyncio.create_task(self.send_waypoint(next(waypogen)))
@@ -215,8 +218,8 @@ class RobotDisplay:
         await self.ble_connection.connect()
         try:
             self.fig.canvas.mpl_connect("close_event", self.handle_close)
-            turn_button = Button(plt.axes([0.2, 0.85, 0.1, 0.075]), "Turn")
-            turn_button.on_clicked(self.turn)
+            drive_button = Button(plt.axes([0.2, 0.85, 0.1, 0.075]), "Drive")
+            drive_button.on_clicked(self.drive)
             wapo_button = Button(plt.axes([0.4, 0.85, 0.1, 0.075]), "WaPo")
             wapo_button.on_clicked(self.wapo)
             run_button = Button(plt.axes([0.6, 0.85, 0.1, 0.075]), "Run")
