@@ -1,5 +1,8 @@
-from math import pi
+# drive_instrux.py
 
+# Use a coarse value for pi
+# json will trip with too many decimal places
+pi = 3.1416
 waypoints_file = "waypoints.txt"
 
 def read_waypoints(wp_file):
@@ -26,5 +29,7 @@ instrux_list = [
     
 instrux_list = [
     {"!DWP": wapo_list[0],},
-    {"!TGH": pi/2,},
+    {"!TRA": -pi,},
+    {"!DWP": wapo_list[-1],},
+    {"!TGH": 0,},
     ]

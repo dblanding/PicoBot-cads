@@ -7,7 +7,6 @@ import matplotlib.pyplot as plt
 from matplotlib.widgets import Button
 import numpy as np
 import pickle
-import struct
 
 import arena
 from drive_instrux import instrux_list
@@ -152,14 +151,14 @@ class RobotDisplay:
         
     async def send_waypoint(self, point):
         if self.robot_is_ready:
-            wp_req = "!DWP".encode('utf8') + (json.dumps(point) + "\n").encode()
+            wp_req = "!DWP".encode() + (json.dumps(point) + "\n").encode()
             print(f"Sending waypoint to robot: {wp_req}")
             await self.ble_connection.send_uart_data(wp_req)
             self.robot_is_ready = False
 
     async def send_turn_gh(self, hdg):
         if self.robot_is_ready:
-            reqst = "!TGH".encode('utf8') + struct.pack('f', hdg) + ("\n").encode()
+            reqst = "!TGH".encode() + (json.dumps(hdg) + "\n").encode()
             print(f"Sending Goal Heading to robot: {reqst}")
             await self.ble_connection.send_uart_data(reqst)
             self.robot_is_ready = False
@@ -170,10 +169,7 @@ class RobotDisplay:
                 instruction = next(instrux_gen)
                 print(instruction)
                 (cmd, val), = instruction.items()
-                if "WP" in cmd:
-                    reqst = cmd.encode('utf8') + (json.dumps(val) + "\n").encode('utf8')
-                else:
-                    reqst = cmd.encode('utf8') + struct.pack('f', val) + ("\n").encode('utf8')
+                reqst = cmd.encode() + (json.dumps(val) + "\n").encode()
                 print(f"Sending Drive Instruction to robot: {reqst}")
                 await self.ble_connection.send_uart_data(reqst)
                 self.robot_is_ready = False

@@ -23,7 +23,6 @@ from parameters import JS_GAIN, MIN_DIST, ANGLE_TOL, MIN_ANGLE
 from parameters import P_TURN_GAIN, D_TURN_GAIN, MAX_ANG_SPD
 import qwiic_i2c
 import qwiic_otos
-import struct
 import time
 import VL53L0X
 from dist_snsr_array import DistSnsrArray
@@ -324,34 +323,31 @@ async def command_handler(robot):
             try:
                 # Handle Bluetooth request
                 bytestring = uart.readline()
-                print(bytestring)
+                print(f"Received bytestring: {bytestring}")
                 cmd = bytestring[:4].decode('utf8')
-                print(cmd)
+                print(f"Command: {cmd}")
                 if cmd == '!RUN':
-                    print("Received Run request, starting robot")
+                    print("Starting robot")
                     if not robot_task:
                         robot_task = asyncio.create_task(robot.main())
                 elif cmd == '!DWP':
                     point = json.loads(bytestring[4:])
                     robot.waypoint = point
-                    print("Received DWP request")
                     robot.mode = 'DWP'
                 elif cmd == '!TGH':
-                    goal_hdg = struct.unpack('f', bytestring[4:-1])[0]
-                    print(goal_hdg)
+                    goal_hdg = json.loads(bytestring[4:])
+                    print(f"Goal Heading: {goal_hdg}")
                     robot.goal_heading = goal_hdg
-                    print("Received TGH request")
                     robot.mode = 'TGH'
                 elif cmd == '!TRA':
-                    robot.goal_angle = json.loads(bytestring[4:])
+                    goal_angle = json.loads(bytestring[4:])
+                    print(f"Goal Angle: {goal_angle}")
+                    robot.goal_angle = goal_angle
                     robot.cum_angle = 0
-                    print("Received TRA request")
                     robot.mode = 'TRA'
                 elif cmd == '!STP':
-                    print("Received STP request")
                     robot.stop()
                 elif cmd == '!END':
-                    print("Received END request")
                     robot.end()
                 
 
