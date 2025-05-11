@@ -19,7 +19,7 @@ OFFSETS = [19, 24, 15, 15, 15, 10, 20]
 # Saved data file
 data_file = "saved_data.pkl"
 
-instrux_gen = (drive_dict for drive_dict in instrux_list)  # generator
+instrux_gen = (ddict for ddict in instrux_list)  # generator
 
 class RobotDisplay:
     def __init__(self):
@@ -49,6 +49,7 @@ class RobotDisplay:
         self.fwd_pnts_list = []
         self.fwd_pnts = None
         self.robot_is_ready = True
+        self.wapolistlen = None
 
     def handle_close(self, _):
         self.closed = True
@@ -69,12 +70,20 @@ class RobotDisplay:
             except ValueError:
                 print("Error parsing JSON")
                 return
-            if "status" in message:
+            if "wapolist" in message:  # robot has completed saving a waypoint
+                count = message["wapolist"]
+                if count == self.wapolistlen:
+                    print(f"Robot has received all {count} waypoints")
+                    try:
+                        self.drive(1)  # Continue to next drive instruction
+                        self.wapolistlen = None
+                    except StopIteration:
+                        print("No more drive instructions")
+            if "status" in message:  # robot has completed a driving instruction
                 if message["status"] == "READY":
                     self.robot_is_ready = True
                     try:
-                        self.drive(1)
-                        print("Starting next drive instruction")
+                        self.drive(1)  # Continue to next drive instruction
                     except StopIteration:
                         print("No more drive instructions")
             if "pose" in message:
@@ -150,31 +159,34 @@ class RobotDisplay:
             self.axes.scatter(self.f_pnts[:,0], self.f_pnts[:,1], color="yellow")
         
     async def send_waypoint(self, point):
-        if self.robot_is_ready:
-            wp_req = "!DWP".encode() + (json.dumps(point) + "\n").encode()
-            print(f"Sending waypoint to robot: {wp_req}")
-            await self.ble_connection.send_uart_data(wp_req)
-            self.robot_is_ready = False
-
-    async def send_turn_gh(self, hdg):
-        if self.robot_is_ready:
-            reqst = "!TGH".encode() + (json.dumps(hdg) + "\n").encode()
-            print(f"Sending Goal Heading to robot: {reqst}")
-            await self.ble_connection.send_uart_data(reqst)
-            self.robot_is_ready = False
+        wp_req = "!SWP".encode() + (json.dumps(point) + "\n").encode()
+        await self.ble_connection.send_uart_data(wp_req)
 
     async def send_instruct(self, ):
-        if self.robot_is_ready:
-            try:
-                instruction = next(instrux_gen)
-                print(instruction)
-                (cmd, val), = instruction.items()
-                reqst = cmd.encode() + (json.dumps(val) + "\n").encode()
-                print(f"Sending Drive Instruction to robot: {reqst}")
-                await self.ble_connection.send_uart_data(reqst)
-                self.robot_is_ready = False
-            except StopIteration:
-                print("No more Driving Instructions")
+        try:
+            instruction = next(instrux_gen)
+            (cmd, val), = instruction.items()
+            if cmd == "!SWP":
+                # Enter loop to send list of waypoints to robot
+                wapolist = val
+                self.wapolistlen = len(wapolist)
+                for point in wapolist:
+                    print(f"Send point {point} to robot")
+                    await self.send_waypoint(point)
+            elif cmd == "!DWP":
+                # Send request w/ no data
+                if self.robot_is_ready:
+                    await self.send_command(cmd)
+                    self.robot_is_ready = False
+            else:
+                # Send request w/ data
+                if self.robot_is_ready:
+                    reqst = cmd.encode() + (json.dumps(val) + "\n").encode()
+                    print(f"Sending Drive Instruction to robot: {reqst}")
+                    await self.ble_connection.send_uart_data(reqst)
+                    self.robot_is_ready = False
+        except StopIteration:
+            print("No more Driving Instructions")
 
     async def send_command(self, code):
         request = (code + "\n").encode('utf8')
@@ -185,10 +197,7 @@ class RobotDisplay:
         self.button_task = asyncio.create_task(self.send_instruct())
 
     def wapo(self, _):
-        self.button_task = asyncio.create_task(self.send_waypoint(next(waypogen)))
-
-    def turn(self, _):
-        self.button_task = asyncio.create_task(self.send_turn_gh(next(turngen)[0]))
+        self.button_task = asyncio.create_task(self.send_waypoint())
 
     def run(self, _):
         self.button_task = asyncio.create_task(self.send_command("!RUN"))

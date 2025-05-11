@@ -183,6 +183,8 @@ class Robot():
         self.prev_pose = (0, 0, 0)
         self.prev_time = None
         self.waypoint = None
+        self.wapolist = []
+        self.wapogen = None
         self.goal_heading = None
         self.cum_angle = None
         self.goal_angle = None
@@ -275,20 +277,34 @@ class Robot():
                         send_json({"status": "READY"})
                         self.mode = 'IDL'
 
-                elif self.mode == 'DWP':  # Drive to waypoint
-                    goal_dist, goal_angle = rel_polar_coords_to_pt(pose, self.waypoint)
-                    if goal_dist > 0.2:
-                        # drive to waypoint, steering to goal_angle
-                        d = -(gz * D_GAIN)  # derivative term
-                        ang_spd = goal_angle + d
-                        motors.drive_motors(self.lin_spd, ang_spd)
+                elif self.mode == 'DWP':  # Drive to waypoint(s)
+                    if self.waypoint:
+                        # Drive to waypoint
+                        goal_dist, goal_angle = rel_polar_coords_to_pt(pose, self.waypoint)
+                        if goal_dist > 0.2:
+                            # Steer to goal_angle on the way
+                            d = -(gz * D_GAIN)  # derivative term
+                            ang_spd = goal_angle + d
+                            motors.drive_motors(self.lin_spd, ang_spd)
+                        else:
+                            # arrived at waypoint
+                            msg = f"Arrived at waypoint {self.waypoint}"
+                            send_json({"status": msg})
+                            try:
+                                self.waypoint = next(self.wapogen)
+                            except StopIteration:
+                                print("No more waypoints")
+                                self.waypoint = None
                     else:
-                        # arrived at waypoint
+                        # We're done driving to waypoints
                         motors.move_stop()
+                        self.waypoint = None
+                        self.wapogen = None
                         send_json({"status": "READY"})
-                        self.mode = 'IDL'
+                        self.mode = 'IDL'  
 
-                if is_moving:  # If robot is moving, send robot data to laptop
+                # If robot is moving, send robot data to laptop
+                if is_moving:
                     if self.mode == 'DWP':
                         send_json({
                             "pose": list(pose),
@@ -330,16 +346,22 @@ async def command_handler(robot):
                     print("Starting robot")
                     if not robot_task:
                         robot_task = asyncio.create_task(robot.main())
-                elif cmd == '!DWP':
+                elif cmd == '!SWP':  # Create Waypoint List
                     point = json.loads(bytestring[4:])
-                    robot.waypoint = point
+                    robot.wapolist.append(point)
+                    send_json({"wapolist": len(robot.wapolist)})
+                elif cmd == '!DWP':  # Drive to WayPoint(s)
                     robot.mode = 'DWP'
-                elif cmd == '!TGH':
+                    if robot.wapolist:
+                        robot.wapogen = (pnt for pnt in robot.wapolist)
+                        robot.wapolist = []
+                        robot.waypoint = next(robot.wapogen)
+                elif cmd == '!TGH':  # Turn (in-place) to Goal Heading
                     goal_hdg = json.loads(bytestring[4:])
                     print(f"Goal Heading: {goal_hdg}")
                     robot.goal_heading = goal_hdg
                     robot.mode = 'TGH'
-                elif cmd == '!TRA':
+                elif cmd == '!TRA':  # Turn (in-place) by Relative Angle
                     goal_angle = json.loads(bytestring[4:])
                     print(f"Goal Angle: {goal_angle}")
                     robot.goal_angle = goal_angle
