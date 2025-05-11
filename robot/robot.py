@@ -30,7 +30,7 @@ from dist_snsr_array import DistSnsrArray
 D_GAIN = 0.5  # Gain of Derivative feedback term
 
 # set up uart for communication with BLE UART friend
-print("Setting up uart for sending robot data to laptop")
+print("Setting up uart for comm with laptop")
 uart = UART(0, 9600)
 uart.init(tx=Pin(0), rx=Pin(1), bits=8, parity=None, stop=1, timeout=10)
 
@@ -342,7 +342,7 @@ async def command_handler(robot):
                 print(f"Received bytestring: {bytestring}")
                 cmd = bytestring[:4].decode('utf8')
                 print(f"Command: {cmd}")
-                if cmd == '!RUN':
+                if cmd == '!RUN':  # Launch robot.main() task
                     print("Starting robot")
                     if not robot_task:
                         robot_task = asyncio.create_task(robot.main())
