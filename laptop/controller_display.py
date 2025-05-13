@@ -171,9 +171,10 @@ class RobotDisplay:
             (cmd, val), = instruction.items()
             if "!SW" in cmd:
                 # Enter loop to send list of waypoints to robot
-                wapolist = val
-                self.wapolistlen = len(wapolist)
-                for point in wapolist:
+                self.wp_list = val
+                self.waypoints = np.array(self.wp_list, dtype=np.float32)
+                self.wapolistlen = len(val)
+                for point in self.wp_list:
                     print(f"Send point {point} to robot")
                     await self.send_waypoint(point)
             elif "!DW" in cmd:
