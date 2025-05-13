@@ -10,7 +10,7 @@ MicroPython code for PicoBot project
     * initially (0, 0, 0)
     * x & y units: meters
     * heading units: radians, Zero along X-axis, pos CCW, neg CW
-    * yaw_rate (rad/sec) also used
+    * yaw_rate (rad/sec) reported by gyro
 """
 
 import asyncio
@@ -144,9 +144,11 @@ def r2p(x, y):
     theta = atan2(y, x)
     return (r, theta)
 
-def rel_polar_coords_to_pt(curr_pose, point):
-    """Based on current pose, return relative
-    polar coords dist (m), angle (rad) to goal point.
+def rel_polar_coords_to_pt(curr_pose, point, fwd=True):
+    """Based on current pose, return relative polar coords
+    dist (m), angle (rad) to goal point. Robot may approach
+    point by driving fwd or rev. If driving fwd, the angle
+    is w/r/t front. For driving rev, angle is w/r/t rear.
     """
     # current pose
     x0, y0, a0 = curr_pose
@@ -163,6 +165,8 @@ def rel_polar_coords_to_pt(curr_pose, point):
 
     # Relative angle to goal point
     rel_angle = theta - a0
+    if not fwd:
+        rel_angle += pi
 
     # Ensure angle is between -pi and +pi
     if rel_angle < -pi:
@@ -192,11 +196,12 @@ class Robot():
     def turn_to_heading(self, goal_heading, gz, yaw):
         """
         Return ang_spd needed to drive motors when
-        turning in place to goal_angle (radians).
-        self.ang_spd is used to remember prev ang_spd when stuck
+        turning in place to goal_angle (radians). Use
+        self.ang_spd to remember prev ang_spd when stuck
         """
         # calculate ang_spd to steer to goal_heading
         yaw_err = yaw - goal_heading
+        
         p = -(yaw_err * P_TURN_GAIN)  # proportional term
         d = -(gz * D_TURN_GAIN)  # derivative term
         ang_spd = p + d
@@ -226,10 +231,12 @@ class Robot():
 
         return ang_spd
 
-    def stop(self):  # stop moving
+    def stop(self):
+        # stop moving
         motors.drive_motors(0, 0)
 
-    def end(self):  # shut down program
+    def end(self):
+        # shut down program
         self.run = False
 
     async def main(self):
@@ -277,7 +284,7 @@ class Robot():
                         send_json({"status": "READY"})
                         self.mode = 'IDL'
 
-                elif self.mode == 'DWP':  # Drive to waypoint(s)
+                elif self.mode == 'DWF':  # Drive to Waypoint(s) Forward
                     if self.waypoint:
                         # Drive to waypoint
                         goal_dist, goal_angle = rel_polar_coords_to_pt(pose, self.waypoint)
@@ -298,14 +305,40 @@ class Robot():
                     else:
                         # We're done driving to waypoints
                         motors.move_stop()
-                        self.waypoint = None
+                        self.wapogen = None
+                        send_json({"status": "READY"})
+                        self.mode = 'IDL'  
+
+                elif self.mode == 'DWR':  # Drive to Waypoint(s) Reverse
+                    if self.waypoint:
+                        # Drive to waypoint
+                        goal_dist, goal_angle = rel_polar_coords_to_pt(pose,
+                                                                       self.waypoint,
+                                                                       fwd=False)
+                        if goal_dist > 0.2:
+                            # Steer to goal_angle on the way
+                            d = -(gz * D_GAIN)  # derivative term
+                            ang_spd = goal_angle + d
+                            motors.drive_motors(-self.lin_spd, ang_spd)
+                        else:
+                            # arrived at waypoint
+                            msg = f"Arrived at waypoint {self.waypoint}"
+                            send_json({"status": msg})
+                            try:
+                                self.waypoint = next(self.wapogen)
+                            except StopIteration:
+                                print("No more waypoints")
+                                self.waypoint = None
+                    else:
+                        # We're done driving to waypoints
+                        motors.move_stop()
                         self.wapogen = None
                         send_json({"status": "READY"})
                         self.mode = 'IDL'  
 
                 # If robot is moving, send robot data to laptop
                 if is_moving:
-                    if self.mode == 'DWP':
+                    if self.mode == 'DWF':
                         send_json({
                             "pose": list(pose),
                             "distances": distances,
@@ -346,22 +379,28 @@ async def command_handler(robot):
                     print("Starting robot")
                     if not robot_task:
                         robot_task = asyncio.create_task(robot.main())
-                elif cmd == '!SWP':  # Create Waypoint List
+                elif cmd == '!SWP':  # Send Waypoint List
                     point = json.loads(bytestring[4:])
                     robot.wapolist.append(point)
                     send_json({"wapolist": len(robot.wapolist)})
-                elif cmd == '!DWP':  # Drive to WayPoint(s)
-                    robot.mode = 'DWP'
+                elif cmd == '!DWF':  # Drive to Waypoint Forward 
+                    robot.mode = 'DWF'
                     if robot.wapolist:
                         robot.wapogen = (pnt for pnt in robot.wapolist)
                         robot.wapolist = []
                         robot.waypoint = next(robot.wapogen)
-                elif cmd == '!TGH':  # Turn (in-place) to Goal Heading
+                elif cmd == '!DWR':  # Drive to Waypoint in Reverse
+                    robot.mode = 'DWR'
+                    if robot.wapolist:
+                        robot.wapogen = (pnt for pnt in robot.wapolist)
+                        robot.wapolist = []
+                        robot.waypoint = next(robot.wapogen)
+                elif cmd == '!TGH':  # Turn in-place to Goal Heading
                     goal_hdg = json.loads(bytestring[4:])
                     print(f"Goal Heading: {goal_hdg}")
                     robot.goal_heading = goal_hdg
                     robot.mode = 'TGH'
-                elif cmd == '!TRA':  # Turn (in-place) by Relative Angle
+                elif cmd == '!TRA':  # Turn in-place by Relative Angle
                     goal_angle = json.loads(bytestring[4:])
                     print(f"Goal Angle: {goal_angle}")
                     robot.goal_angle = goal_angle

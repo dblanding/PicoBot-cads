@@ -11,16 +11,12 @@ wapo_list = [
     ]
 
 wapo_list2 = [
-    (2.35, 0),
-    (1.85, -0.5),
-    (0, 0),
+    (1, 0.1),
     ]
    
 instrux_list = [
-    {"!SWP": wapo_list,},
-    {"!DWP": None,},
-    {"!TGH": -pi/2,},
+    {"!TRA": pi,},
     {"!SWP": wapo_list2,},
-    {"!DWP": None,},
+    {"!DWR": None,},
     {"!TGH": 0,},
     ]

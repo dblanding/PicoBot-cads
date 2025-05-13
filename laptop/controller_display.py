@@ -166,14 +166,14 @@ class RobotDisplay:
         try:
             instruction = next(instrux_gen)
             (cmd, val), = instruction.items()
-            if cmd == "!SWP":
+            if "!SW" in cmd:
                 # Enter loop to send list of waypoints to robot
                 wapolist = val
                 self.wapolistlen = len(wapolist)
                 for point in wapolist:
                     print(f"Send point {point} to robot")
                     await self.send_waypoint(point)
-            elif cmd == "!DWP":
+            elif "!DW" in cmd:
                 # Send request w/ no data
                 if self.robot_is_ready:
                     await self.send_command(cmd)
