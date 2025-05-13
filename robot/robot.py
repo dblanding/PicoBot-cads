@@ -240,7 +240,7 @@ class Robot():
 
     def stop(self):
         # stop moving
-        motors.drive_motors(0, 0)
+        motors.move_stop()
 
     def end(self):
         # shut down program
@@ -248,126 +248,119 @@ class Robot():
 
     async def main(self):
         while self.run:
-            try:
-                # read distances from VCSEL sensors
-                distances = dsa.read_all()
+            # read distances from VCSEL sensors
+            distances = dsa.read_all()
 
-                # check current pose
-                is_moving, pose = check_pose(self.prev_pose)
-                self.prev_pose = pose
-                
-                # get yaw (rad) from pose and yaw rate (rad/sec) from gyro
-                _, _, yaw = pose
-                gz = get_yaw_rate()
+            # check current pose
+            is_moving, pose = check_pose(self.prev_pose)
+            self.prev_pose = pose
+            
+            # get yaw (rad) from pose and yaw rate (rad/sec) from gyro
+            _, _, yaw = pose
+            gz = get_yaw_rate()
 
-                curr_time = time.ticks_ms()
-                if not self.prev_time:  # initialize
-                    self.prev_time = curr_time
-                    continue
-                elif self.mode == 'TRA':  # Turn in place by a relative angle (+ is CCW)
-                    delta_time = (curr_time - self.prev_time)/1000  # (sec)
-                    self.prev_time = curr_time
-                    self.cum_angle += (gz * (delta_time))
-                    if self.goal_angle > 0:
-                        if self.cum_angle < self.goal_angle:
-                            motors.drive_motors(0, MAX_ANG_SPD)
-                        else:  # Completed CCW turn to rel goal angle
-                            motors.move_stop()
-                            send_json({"status": "READY"})
-                            self.mode = 'IDL'
-                    elif self.goal_angle <= 0:
-                        if self.cum_angle > self.goal_angle:
-                            motors.drive_motors(0, -MAX_ANG_SPD)
-                        else:  # Completed CW turn to rel goal angle
-                            motors.move_stop()
-                            send_json({"status": "READY"})
-                            self.mode = 'IDL'
-
-                elif self.mode == 'TGH':  # Turn in place to a global heading
-                    ang_spd = self.turn_to_heading(self.goal_heading, gz, yaw)
-                    motors.drive_motors(0, ang_spd)
-                    if not ang_spd:  # arrived at goal heading
-                        motors.move_stop()
+            curr_time = time.ticks_ms()
+            if not self.prev_time:  # initialize
+                self.prev_time = curr_time
+                continue
+            elif self.mode == 'TRA':  # Turn in place by a relative angle (+ is CCW)
+                delta_time = (curr_time - self.prev_time)/1000  # (sec)
+                self.prev_time = curr_time
+                self.cum_angle += (gz * (delta_time))
+                if self.goal_angle > 0:
+                    if self.cum_angle < self.goal_angle:
+                        motors.drive_motors(0, MAX_ANG_SPD)
+                    else:  # Completed CCW turn to rel goal angle
+                        self.stop()
+                        send_json({"status": "READY"})
+                        self.mode = 'IDL'
+                elif self.goal_angle <= 0:
+                    if self.cum_angle > self.goal_angle:
+                        motors.drive_motors(0, -MAX_ANG_SPD)
+                    else:  # Completed CW turn to rel goal angle
+                        self.stop()
                         send_json({"status": "READY"})
                         self.mode = 'IDL'
 
-                elif self.mode == 'DWF':  # Drive to Waypoint(s) Forward
-                    if self.waypoint:
-                        # Drive to waypoint
-                        goal_dist, goal_angle = rel_polar_coords_to_pt(pose, self.waypoint)
-                        if goal_dist > 0.2:
-                            # Steer to goal_angle on the way
-                            d = -(gz * D_GAIN)  # derivative term
-                            ang_spd = goal_angle + d
-                            motors.drive_motors(self.lin_spd, ang_spd)
-                        else:
-                            # arrived at waypoint
-                            msg = f"Arrived at waypoint {self.waypoint}"
-                            send_json({"status": msg})
-                            try:
-                                self.waypoint = next(self.wapogen)
-                            except StopIteration:
-                                print("No more waypoints")
-                                self.waypoint = None
+            elif self.mode == 'TGH':  # Turn in place to a global heading
+                ang_spd = self.turn_to_heading(self.goal_heading, gz, yaw)
+                motors.drive_motors(0, ang_spd)
+                if not ang_spd:  # arrived at goal heading
+                    self.stop()
+                    send_json({"status": "READY"})
+                    self.mode = 'IDL'
+
+            elif self.mode == 'DWF':  # Drive to Waypoint(s) Forward
+                if self.waypoint:
+                    # Drive to waypoint
+                    goal_dist, goal_angle = rel_polar_coords_to_pt(pose, self.waypoint)
+                    if goal_dist > 0.2:
+                        # Steer to goal_angle on the way
+                        d = -(gz * D_GAIN)  # derivative term
+                        ang_spd = goal_angle + d
+                        motors.drive_motors(self.lin_spd, ang_spd)
                     else:
-                        # We're done driving to waypoints
-                        motors.move_stop()
-                        self.wapogen = None
-                        send_json({"status": "READY"})
-                        self.mode = 'IDL'  
+                        # arrived at waypoint
+                        msg = f"Arrived at waypoint {self.waypoint}"
+                        send_json({"status": msg})
+                        try:
+                            self.waypoint = next(self.wapogen)
+                        except StopIteration:
+                            print("No more waypoints")
+                            self.waypoint = None
+                else:
+                    # We're done driving to waypoints
+                    self.stop()
+                    self.wapogen = None
+                    send_json({"status": "READY"})
+                    self.mode = 'IDL'  
 
-                elif self.mode == 'DWR':  # Drive to Waypoint(s) Reverse
-                    if self.waypoint:
-                        # Drive to waypoint
-                        goal_dist, goal_angle = rel_polar_coords_to_pt(pose,
-                                                                       self.waypoint,
-                                                                       fwd=False)
-                        if goal_dist > 0.2:
-                            # Steer to goal_angle on the way
-                            d = -(gz * D_GAIN)  # derivative term
-                            ang_spd = goal_angle + d
-                            motors.drive_motors(-self.lin_spd, ang_spd)
-                        else:
-                            # arrived at waypoint
-                            msg = f"Arrived at waypoint {self.waypoint}"
-                            send_json({"status": msg})
-                            try:
-                                self.waypoint = next(self.wapogen)
-                            except StopIteration:
-                                print("No more waypoints")
-                                self.waypoint = None
+            elif self.mode == 'DWR':  # Drive to Waypoint(s) Reverse
+                if self.waypoint:
+                    # Drive to waypoint
+                    goal_dist, goal_angle = rel_polar_coords_to_pt(pose,
+                                                                   self.waypoint,
+                                                                   fwd=False)
+                    if goal_dist > 0.2:
+                        # Steer to goal_angle on the way
+                        d = -(gz * D_GAIN)  # derivative term
+                        ang_spd = goal_angle + d
+                        motors.drive_motors(-self.lin_spd, ang_spd)
                     else:
-                        # We're done driving to waypoints
-                        motors.move_stop()
-                        self.wapogen = None
-                        send_json({"status": "READY"})
-                        self.mode = 'IDL'  
+                        # arrived at waypoint
+                        msg = f"Arrived at waypoint {self.waypoint}"
+                        send_json({"status": msg})
+                        try:
+                            self.waypoint = next(self.wapogen)
+                        except StopIteration:
+                            print("No more waypoints")
+                            self.waypoint = None
+                else:
+                    # We're done driving to waypoints
+                    self.stop()
+                    self.wapogen = None
+                    send_json({"status": "READY"})
+                    self.mode = 'IDL'  
 
-                # If robot is moving, send robot data to laptop
-                if is_moving:
-                    if self.mode == 'DWF':
-                        send_json({
-                            "pose": list(pose),
-                            "distances": distances,
-                            "errors": self.errors,
-                            "goal_dist": goal_dist,
-                            "goal_angle": goal_angle,
-                            })
-                    else:
-                        send_json({
-                            "pose": list(pose),
-                            "distances": distances,
-                            "errors": self.errors,
-                            })
+            # If robot is moving, send robot data to laptop
+            if is_moving:
+                if 'DW' in self.mode:
+                    send_json({
+                        "pose": list(pose),
+                        "distances": distances,
+                        "errors": self.errors,
+                        "goal_dist": goal_dist,
+                        "goal_angle": goal_angle,
+                        })
+                else:
+                    send_json({
+                        "pose": list(pose),
+                        "distances": distances,
+                        "errors": self.errors,
+                        })
 
-                led.toggle()
-                await asyncio.sleep(0.1)
-
-            except Exception as e:
-                self.errors.append(e)
-
-            finally:
-                motors.move_stop()
+            led.toggle()
+            await asyncio.sleep(0.1)
 
 
 async def command_handler(robot):
