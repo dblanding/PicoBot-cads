@@ -144,6 +144,14 @@ def r2p(x, y):
     theta = atan2(y, x)
     return (r, theta)
 
+def normalize_angle(angle):
+    """Ensure angle is between -pi and +pi"""
+    if angle < -pi:
+        angle += 2 * pi
+    elif angle > pi:
+        angle -= 2 * pi
+    return angle
+
 def rel_polar_coords_to_pt(curr_pose, point, fwd=True):
     """Based on current pose, return relative polar coords
     dist (m), angle (rad) to goal point. Robot may approach
@@ -169,10 +177,7 @@ def rel_polar_coords_to_pt(curr_pose, point, fwd=True):
         rel_angle += pi
 
     # Ensure angle is between -pi and +pi
-    if rel_angle < -pi:
-        rel_angle += 2 * pi
-    elif rel_angle > pi:
-        rel_angle -= 2 * pi
+    rel_angle = normalize_angle(rel_angle)
 
     return (r, rel_angle)
 
@@ -195,12 +200,14 @@ class Robot():
 
     def turn_to_heading(self, goal_heading, gz, yaw):
         """
-        Return ang_spd needed to drive motors when
-        turning in place to goal_angle (radians). Use
-        self.ang_spd to remember prev ang_spd when stuck
+        Return ang_spd needed to drive motors when turning in place to
+        goal_angle (radians). Use self.ang_spd to remember prev ang_spd
+        when stuck.
         """
-        # calculate ang_spd to steer to goal_heading
-        yaw_err = yaw - goal_heading
+        # Steering to goal heading is tricky when goal heading is near pi.
+        # Reframe the problem to steer to a target_relative_angle of zero.
+        target_relative_angle = goal_heading - yaw
+        yaw_err = -normalize_angle(target_relative_angle)
         
         p = -(yaw_err * P_TURN_GAIN)  # proportional term
         d = -(gz * D_TURN_GAIN)  # derivative term
