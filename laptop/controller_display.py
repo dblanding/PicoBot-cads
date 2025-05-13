@@ -19,7 +19,6 @@ OFFSETS = [19, 24, 15, 15, 15, 10, 20]
 # Saved data file
 data_file = "saved_data.pkl"
 
-instrux_gen = (ddict for ddict in instrux_list)  # generator
 
 class RobotDisplay:
     def __init__(self):
@@ -158,13 +157,17 @@ class RobotDisplay:
         if self.f_pnts is not None:
             self.axes.scatter(self.f_pnts[:,0], self.f_pnts[:,1], color="yellow")
         
+    async def load_instrux(self, ):
+        """Create new instrux generator"""
+        self.instrux_gen = (dd for dd in instrux_list)
+
     async def send_waypoint(self, point):
         wp_req = "!SWP".encode() + (json.dumps(point) + "\n").encode()
         await self.ble_connection.send_uart_data(wp_req)
 
     async def send_instruct(self, ):
         try:
-            instruction = next(instrux_gen)
+            instruction = next(self.instrux_gen)
             (cmd, val), = instruction.items()
             if "!SW" in cmd:
                 # Enter loop to send list of waypoints to robot
@@ -196,8 +199,8 @@ class RobotDisplay:
     def drive(self, _):
         self.button_task = asyncio.create_task(self.send_instruct())
 
-    def wapo(self, _):
-        self.button_task = asyncio.create_task(self.send_waypoint())
+    def load(self, _):
+        self.button_task = asyncio.create_task(self.load_instrux())
 
     def run(self, _):
         self.button_task = asyncio.create_task(self.send_command("!RUN"))
@@ -225,8 +228,8 @@ class RobotDisplay:
             self.fig.canvas.mpl_connect("close_event", self.handle_close)
             drive_button = Button(plt.axes([0.2, 0.85, 0.1, 0.075]), "Drive")
             drive_button.on_clicked(self.drive)
-            wapo_button = Button(plt.axes([0.4, 0.85, 0.1, 0.075]), "WaPo")
-            wapo_button.on_clicked(self.wapo)
+            load_button = Button(plt.axes([0.4, 0.85, 0.1, 0.075]), "Load")
+            load_button.on_clicked(self.load)
             run_button = Button(plt.axes([0.6, 0.85, 0.1, 0.075]), "Run")
             run_button.on_clicked(self.run)
             stop_button = Button(plt.axes([0.8, 0.85, 0.1, 0.075]), "Stop")
