@@ -48,7 +48,7 @@ https://github.com/user-attachments/assets/53fcd333-3603-44a6-9623-7bde302bacb5
 
 Instruction | key | value
 ------------|-----|-------
-Save WayPoints|"SWP"| list of points (x, y)
+Send WayPoints to robot |"SWP"| list of points (x, y)
 Drive Waypoints (driving Forward) | "DWF" | None (drive the list of points in sequence)
 Drive Waypoints (driving in Reverse) | "DWR" | None (drive the list of points in sequence)
 Turn in place to Goal Heading | "TGH" | Heading angle (radians)
@@ -87,7 +87,7 @@ instrux_list = [
     ]
 ```
 * The instruction list has just 3 lines:
-    * Save the waypoint list
+    * Send the waypoint list to the robot
     * Drive the waypoints in sequence
     * Turn in place to Global Heading 0
 * During execution of the first instruction, the waypoints are displayed (in Magenta color)
