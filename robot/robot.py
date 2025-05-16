@@ -186,6 +186,7 @@ class Robot():
     def __init__(self):
         self.lin_spd = 0.7  # nominal drive speed
         self.ang_spd = 0  # prev value ang_spd only when stuck
+        self.mtr_spds = (0, 0)
         self.run = True
         self.mode = 'IDL'  # Idle
         self.errors = []
@@ -263,7 +264,12 @@ class Robot():
             if not self.prev_time:  # initialize
                 self.prev_time = curr_time
                 continue
-            elif self.mode == 'TRA':  # Turn in place by a relative angle (+ is CCW)
+
+            elif self.mode == 'IAD':  # InterActive Drive
+                lin_spd, ang_spd = self.mtr_spds
+                motors.drive_motors(lin_spd, ang_spd)
+
+            elif self.mode == 'TRA':  # Turn in place by a Relative Angle (+ is CCW)
                 delta_time = (curr_time - self.prev_time)/1000  # (sec)
                 self.prev_time = curr_time
                 self.cum_angle += (gz * (delta_time))
@@ -282,7 +288,7 @@ class Robot():
                         send_json({"status": "READY"})
                         self.mode = 'IDL'
 
-            elif self.mode == 'TGH':  # Turn in place to a global heading
+            elif self.mode == 'TGH':  # Turn in place to Global Heading
                 ang_spd = self.turn_to_heading(self.goal_heading, gz, yaw)
                 motors.drive_motors(0, ang_spd)
                 if not ang_spd:  # arrived at goal heading
@@ -401,11 +407,15 @@ async def command_handler(robot):
                     robot.goal_heading = goal_hdg
                     robot.mode = 'TGH'
                 elif cmd == '!TRA':  # Turn in-place by Relative Angle
-                    goal_angle = json.loads(bytestring[4:])
+                    incoming = json.loads(bytestring[4:])
                     print(f"Goal Angle: {goal_angle}")
                     robot.goal_angle = goal_angle
                     robot.cum_angle = 0
                     robot.mode = 'TRA'
+                elif cmd == '!IAD':  # InterActive Drive
+                    mtr_spds = json.loads(bytestring[4:])
+                    robot.mtr_spds = mtr_spds
+                    robot.mode = 'IAD'
                 elif cmd == '!STP':
                     robot.stop()
                 elif cmd == '!END':

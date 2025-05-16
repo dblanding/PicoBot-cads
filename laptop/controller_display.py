@@ -9,7 +9,7 @@ import numpy as np
 import pickle
 
 import arena
-from drive_instrux import instrux_list
+#from drive_instrux import instrux_list
 from geom2d import pt_coords
 from robot_ble_connection import BleConnection
 
@@ -19,6 +19,9 @@ OFFSETS = [19, 24, 15, 15, 15, 10, 20]
 # Saved data file
 data_file = "saved_data.pkl"
 
+instrux_list = [
+    {"!IAD": (0.4, 0.0),},
+    ]
 
 class RobotDisplay:
     def __init__(self):
@@ -50,6 +53,7 @@ class RobotDisplay:
         self.robot_is_ready = True
         self.wapolistlen = None
         self.instrux_list = instrux_list
+        self.instrux_gen = None
 
     def handle_close(self, _):
         self.closed = True
@@ -96,41 +100,47 @@ class RobotDisplay:
                 dist_vals = []
                 pt_locations = []  # global coords of detected points
                 for idx in range(len(snsr_vals)):
-                    if snsr_vals[idx] < 1500:
-                        dist = snsr_vals[idx] + OFFSETS[idx]
-                        dist_vals.append(dist)
-                        rel_angle = pi/2 - idx * pi/6
-                        xy_coords = pt_coords(pose, dist/1000, rel_angle)
-                        pt_locations.append(xy_coords)
-                        # Sensor A (Left looking)
-                        if idx == 0:
-                            self.l_pnts_list.append(xy_coords)
-                            self.l_pnts = np.array(self.l_pnts_list, dtype=np.float32)
-                        # Sensor B (Left 30 deg fwd looking)
-                        if idx == 1:
-                            self.l30_pnts_list.append(xy_coords)
-                            self.l30_pnts = np.array(self.l30_pnts_list, dtype=np.float32)
-                        # Sensor C (Left 60 deg fwd looking)
-                        if idx == 2:
-                            self.l60_pnts_list.append(xy_coords)
-                            self.l60_pnts = np.array(self.l60_pnts_list, dtype=np.float32)
-                        # Sensor D (forward looking)
-                        elif idx == 3:
-                            self.f_pnts_list.append(xy_coords)
-                            self.f_pnts = np.array(self.f_pnts_list, dtype=np.float32)
-                        # Sensor E (Right 60 deg fwd looking)
-                        if idx == 4:
-                            self.r60_pnts_list.append(xy_coords)
-                            self.r60_pnts = np.array(self.r60_pnts_list, dtype=np.float32)
-                        # Sensor F (Right 30 deg fwd looking)
-                        if idx == 5:
-                            self.r30_pnts_list.append(xy_coords)
-                            self.r30_pnts = np.array(self.r30_pnts_list, dtype=np.float32)
-                        # Sensor G (right looking)
-                        elif idx == 6:
-                            self.r_pnts_list.append(xy_coords)
-                            self.r_pnts = np.array(self.r_pnts_list, dtype=np.float32)
+                    dist = snsr_vals[idx] + OFFSETS[idx]
+                    if dist > 1900:
+                        dist = 8000
+                    dist_vals.append(dist)
+                    rel_angle = pi/2 - idx * pi/6
+                    xy_coords = pt_coords(pose, dist/1000, rel_angle)
+                    pt_locations.append(xy_coords)
+                    # Sensor A (Left looking)
+                    if idx == 0:
+                        self.l_pnts_list.append(xy_coords)
+                        self.l_pnts = np.array(self.l_pnts_list, dtype=np.float32)
+                    # Sensor B (Left 30 deg fwd looking)
+                    if idx == 1:
+                        self.l30_pnts_list.append(xy_coords)
+                        self.l30_pnts = np.array(self.l30_pnts_list, dtype=np.float32)
+                    # Sensor C (Left 60 deg fwd looking)
+                    if idx == 2:
+                        self.l60_pnts_list.append(xy_coords)
+                        self.l60_pnts = np.array(self.l60_pnts_list, dtype=np.float32)
+                    # Sensor D (forward looking)
+                    elif idx == 3:
+                        self.f_pnts_list.append(xy_coords)
+                        self.f_pnts = np.array(self.f_pnts_list, dtype=np.float32)
+                    # Sensor E (Right 60 deg fwd looking)
+                    if idx == 4:
+                        self.r60_pnts_list.append(xy_coords)
+                        self.r60_pnts = np.array(self.r60_pnts_list, dtype=np.float32)
+                    # Sensor F (Right 30 deg fwd looking)
+                    if idx == 5:
+                        self.r30_pnts_list.append(xy_coords)
+                        self.r30_pnts = np.array(self.r30_pnts_list, dtype=np.float32)
+                    # Sensor G (right looking)
+                    elif idx == 6:
+                        self.r_pnts_list.append(xy_coords)
+                        self.r_pnts = np.array(self.r_pnts_list, dtype=np.float32)
 
+            print(f"(corrected) dist_vals: {dist_vals}")
+            if dist_vals[3] < 350:
+                self.instrux_list = [{"!IAD": (0.0, 0.0),}, ]
+                self.load_instrux()
+                self.drive(1)
 
     def draw(self):
         self.axes.clear()
@@ -185,7 +195,7 @@ class RobotDisplay:
                     self.robot_is_ready = False
             else:
                 # Send request w/ data
-                if self.robot_is_ready:
+                if self.robot_is_ready or cmd == "!IAD":
                     reqst = cmd.encode() + (json.dumps(val) + "\n").encode()
                     print(f"Sending Drive Instruction to robot: {reqst}")
                     await self.ble_connection.send_uart_data(reqst)
