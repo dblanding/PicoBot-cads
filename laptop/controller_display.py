@@ -90,16 +90,16 @@ class RobotDisplay:
                 self.pose_list.append(pose)
                 self.poses = np.array(self.pose_list, dtype=np.float32)
             if "distances" in message:
-                distances = message["distances"]
+                snsr_vals = message["distances"]
                 # Process distance data from VCSEL sensors
-                corrected_dists = []
+                dist_vals = []
                 pt_locations = []  # global coords of detected points
-                for idx in range(len(distances)):
-                    if distances[idx] < 1500:
-                        corrected_value = distances[idx] + OFFSETS[idx]
-                        corrected_dists.append(corrected_value)
+                for idx in range(len(snsr_vals)):
+                    if snsr_vals[idx] < 1500:
+                        dist = snsr_vals[idx] + OFFSETS[idx]
+                        dist_vals.append(dist)
                         rel_angle = pi/2 - idx * pi/6
-                        xy_coords = pt_coords(pose, corrected_value/1000, rel_angle)
+                        xy_coords = pt_coords(pose, dist/1000, rel_angle)
                         pt_locations.append(xy_coords)
                         # Sensor A (Left looking)
                         if idx == 0:
