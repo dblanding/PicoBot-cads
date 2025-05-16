@@ -49,6 +49,7 @@ class RobotDisplay:
         self.fwd_pnts = None
         self.robot_is_ready = True
         self.wapolistlen = None
+        self.instrux_list = instrux_list
 
     def handle_close(self, _):
         self.closed = True
@@ -157,9 +158,9 @@ class RobotDisplay:
         if self.f_pnts is not None:
             self.axes.scatter(self.f_pnts[:,0], self.f_pnts[:,1], color="yellow")
         
-    async def load_instrux(self, ):
-        """Create new instrux generator"""
-        self.instrux_gen = (dd for dd in instrux_list)
+    def load_instrux(self, ):
+        """Create new instrux generator from self.instux_list"""
+        self.instrux_gen = (dd for dd in self.instrux_list)
 
     async def send_waypoint(self, point):
         wp_req = "!SWP".encode() + (json.dumps(point) + "\n").encode()
@@ -201,7 +202,7 @@ class RobotDisplay:
         self.button_task = asyncio.create_task(self.send_instruct())
 
     def load(self, _):
-        self.button_task = asyncio.create_task(self.load_instrux())
+        self.button_task = self.load_instrux()
 
     def run(self, _):
         self.button_task = asyncio.create_task(self.send_command("!RUN"))
