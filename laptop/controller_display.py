@@ -9,7 +9,7 @@ import numpy as np
 import pickle
 
 import arena
-#from drive_instrux import instrux_list
+from async_gamepad import AsyncGamepad
 from geom2d import pt_coords
 from robot_ble_connection import BleConnection
 
@@ -20,8 +20,12 @@ OFFSETS = [19, 24, 15, 15, 15, 10, 20]
 data_file = "saved_data.pkl"
 
 instrux_list = [
-    {"!IAD": (0.4, 0.0),},
+    {"!IAD": (128, 128), },
     ]
+
+gamepad_path = '/dev/input/event17'
+gamepad = AsyncGamepad(gamepad_path)
+
 
 class RobotDisplay:
     def __init__(self):
@@ -74,7 +78,7 @@ class RobotDisplay:
             except ValueError:
                 print("Error parsing JSON")
                 return
-            if "wapolist" in message:  # robot has completed saving a waypoint
+            if "wapolist" in message:  # robot has received waypoint
                 count = message["wapolist"]
                 if count == self.wapolistlen:
                     print(f"Robot has received all {count} waypoints")
@@ -83,13 +87,15 @@ class RobotDisplay:
                         self.wapolistlen = None
                     except StopIteration:
                         print("No more drive instructions")
-            if "status" in message:  # robot has completed a driving instruction
+            if "status" in message:  # robot has completed driving instruction
                 if message["status"] == "READY":
                     self.robot_is_ready = True
                     try:
                         self.drive(1)  # Continue to next drive instruction
                     except StopIteration:
                         print("No more drive instructions")
+                elif message["status"] == "IAD_READY":  # ready for next IAD cmd
+                    self.send_iad(self.get_joystk_vals())
             if "pose" in message:
                 pose = message["pose"]
                 self.pose_list.append(pose)
@@ -137,7 +143,6 @@ class RobotDisplay:
                             self.r_pnts_list.append(xy_coords)
                             self.r_pnts = np.array(self.r_pnts_list, dtype=np.float32)
 
-
     def draw(self):
         self.axes.clear()
         if self.arena:
@@ -164,8 +169,12 @@ class RobotDisplay:
         if self.f_pnts is not None:
             self.axes.scatter(self.f_pnts[:,0], self.f_pnts[:,1], color="yellow")
         
+    async def send_iad_cmd(self, joy_vals):
+        reqst = "!IAD".encode() + (json.dumps(joy_vals) + "\n").encode()
+        await self.ble_connection.send_uart_data(reqst)
+
     def load_instrux(self, ):
-        """Create new instrux generator from self.instux_list"""
+        print("Creating new instrux generator from self.instrux_list")
         self.instrux_gen = (dd for dd in self.instrux_list)
 
     async def send_waypoint(self, point):
@@ -195,9 +204,14 @@ class RobotDisplay:
                     reqst = cmd.encode() + (json.dumps(val) + "\n").encode()
                     print(f"Sending Drive Instruction to robot: {reqst}")
                     await self.ble_connection.send_uart_data(reqst)
-                    self.robot_is_ready = False
+                    self.robot_is_ready = True
         except StopIteration:
             print("No more Driving Instructions")
+
+    async def send_iad_instruct(self, joy_vals):
+        reqst = "!IAD".encode() + (json.dumps(joy_vals) + "\n").encode()
+        print(f"Sending Drive Instruction to robot: {reqst}")
+        await self.ble_connection.send_uart_data(reqst)
 
     async def send_command(self, code):
         request = (code + "\n").encode('utf8')
@@ -216,6 +230,10 @@ class RobotDisplay:
     def stop(self, _):
         self.button_task = asyncio.create_task(self.send_command("!STP"))
 
+    def send_iad(self, joy_vals):
+        """Send joystick values in IAD mode"""
+        asyncio.create_task(self.send_iad_cmd(joy_vals))
+
     def save_data(self, ):
         data = {"poses": self.poses,
                 "r_pnts": self.r_pnts,
@@ -229,8 +247,38 @@ class RobotDisplay:
         with open(data_file, 'wb') as file:
             pickle.dump(data, file)
 
+    async def start_gamepad(self):
+        try:
+            await gamepad.start()
+        except FileNotFoundError:
+            print(f"Error: Gamepad device not found at {gamepad_path}")
+        except Exception as e:
+            print(f"Error: {e}")
+        finally:
+            if gamepad.running:
+                await gamepad.stop()
+
+    def get_joystk_vals(self):
+        """Get joystick values (0 to 255 full scale)"""
+        y = gamepad.get_axis_state('left_stick_y')
+        x = gamepad.get_axis_state('right_stick_x')
+
+        # Don't send null values, which is what we get before first reading
+        if not y:
+            y = 128
+        if not x:
+            x = 128
+        return y, x
+
     async def main(self):
         plt.ion()
+
+        try:
+            print(f"Listening for events from {gamepad.device.name}...")
+            task = asyncio.create_task(self.start_gamepad())
+        finally:
+            await gamepad.stop()
+        
         await self.ble_connection.connect()
         try:
             self.fig.canvas.mpl_connect("close_event", self.handle_close)
@@ -250,7 +298,6 @@ class RobotDisplay:
         finally:
             self.save_data()
             await self.ble_connection.close()
-
 
 robot_display = RobotDisplay()
 asyncio.run(robot_display.main())
