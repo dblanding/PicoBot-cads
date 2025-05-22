@@ -186,7 +186,7 @@ class Robot():
     def __init__(self):
         self.lin_spd = 0.7  # nominal drive speed
         self.ang_spd = 0  # prev value ang_spd only when stuck
-        self.mtr_spds = (0, 0)
+        self.mtr_spds = [0, 0]  # [lin_spd, ang_spd] in IAD mode
         self.run = True
         self.mode = 'IDL'  # Idle
         self.errors = []
@@ -413,15 +413,20 @@ async def command_handler(robot):
                     robot.cum_angle = 0
                     robot.mode = 'TRA'
                 elif cmd == '!IAD':  # InterActive Drive
-                    mtr_spds = json.loads(bytestring[4:])
-                    robot.mtr_spds = mtr_spds
+                    joy_vals = json.loads(bytestring[4:])
+                    y, x = joy_vals
+                    
+                    # Convert joystick vals to lin_spd, ang_spd
+                    lin_spd = (128 - y) / 128
+                    ang_spd = (128 - x) / 128
+                    robot.mtr_spds = [lin_spd, ang_spd]
+                    send_json({"status": "IAD_READY"})
                     robot.mode = 'IAD'
                 elif cmd == '!STP':
                     robot.stop()
                 elif cmd == '!END':
                     robot.end()
                 
-
             except Exception as e:
                 robot.errors.append(e)
         
