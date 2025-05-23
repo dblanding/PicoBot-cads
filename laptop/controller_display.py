@@ -23,9 +23,11 @@ instrux_list = [
     {"!TOD": (128, 128), },
     ]
 
-gamepad_path = '/dev/input/event17'
-gamepad = AsyncGamepad(gamepad_path)
-
+try:
+    gamepad_path = '/dev/input/event17'
+    gamepad = AsyncGamepad(gamepad_path)
+except FileNotFoundError:
+    gamepad = None
 
 class RobotDisplay:
     def __init__(self):
@@ -273,11 +275,12 @@ class RobotDisplay:
     async def main(self):
         plt.ion()
 
-        try:
-            print(f"Listening for events from {gamepad.device.name}...")
-            task = asyncio.create_task(self.start_gamepad())
-        finally:
-            await gamepad.stop()
+        if gamepad:
+            try:
+                print(f"Listening for events from {gamepad.device.name}...")
+                task = asyncio.create_task(self.start_gamepad())
+            finally:
+                await gamepad.stop()
         
         await self.ble_connection.connect()
         try:
