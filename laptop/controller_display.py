@@ -20,7 +20,7 @@ OFFSETS = [19, 24, 15, 15, 15, 10, 20]
 data_file = "saved_data.pkl"
 
 instrux_list = [
-    {"!IAD": (128, 128), },
+    {"!TOD": (128, 128), },
     ]
 
 gamepad_path = '/dev/input/event17'
@@ -70,11 +70,11 @@ class RobotDisplay:
                 # Print current time w/ seconds (to hundredths)
                 now = datetime.now()
                 current_time = now.strftime("%H:%M:%S.%f")[:-4]
-                print(current_time)
+                #print(current_time)
 
                 # Print data from robot
                 message = json.loads(line)
-                pprint(message)
+                #pprint(message)
             except ValueError:
                 print("Error parsing JSON")
                 return
@@ -94,8 +94,8 @@ class RobotDisplay:
                         self.drive(1)  # Continue to next drive instruction
                     except StopIteration:
                         print("No more drive instructions")
-                elif message["status"] == "IAD_READY":  # ready for next IAD cmd
-                    self.send_iad(self.get_joystk_vals())
+                elif message["status"] == "TOD_READY":  # ready for next TOD cmd
+                    self.send_TOD(self.get_joystk_vals())
             if "pose" in message:
                 pose = message["pose"]
                 self.pose_list.append(pose)
@@ -169,8 +169,8 @@ class RobotDisplay:
         if self.f_pnts is not None:
             self.axes.scatter(self.f_pnts[:,0], self.f_pnts[:,1], color="yellow")
         
-    async def send_iad_cmd(self, joy_vals):
-        reqst = "!IAD".encode() + (json.dumps(joy_vals) + "\n").encode()
+    async def send_TOD_cmd(self, joy_vals):
+        reqst = "!TOD".encode() + (json.dumps(joy_vals) + "\n").encode()
         await self.ble_connection.send_uart_data(reqst)
 
     def load_instrux(self, ):
@@ -200,17 +200,17 @@ class RobotDisplay:
                     self.robot_is_ready = False
             else:
                 # Send request w/ data
-                if self.robot_is_ready or cmd == "!IAD":
+                if self.robot_is_ready or cmd == "!TOD":
                     reqst = cmd.encode() + (json.dumps(val) + "\n").encode()
-                    print(f"Sending Drive Instruction to robot: {reqst}")
+                    #print(f"Sending Drive Instruction to robot: {reqst}")
                     await self.ble_connection.send_uart_data(reqst)
                     self.robot_is_ready = True
         except StopIteration:
             print("No more Driving Instructions")
 
-    async def send_iad_instruct(self, joy_vals):
-        reqst = "!IAD".encode() + (json.dumps(joy_vals) + "\n").encode()
-        print(f"Sending Drive Instruction to robot: {reqst}")
+    async def send_TOD_instruct(self, joy_vals):
+        reqst = "!TOD".encode() + (json.dumps(joy_vals) + "\n").encode()
+        #print(f"Sending Drive Instruction to robot: {reqst}")
         await self.ble_connection.send_uart_data(reqst)
 
     async def send_command(self, code):
@@ -230,9 +230,9 @@ class RobotDisplay:
     def stop(self, _):
         self.button_task = asyncio.create_task(self.send_command("!STP"))
 
-    def send_iad(self, joy_vals):
-        """Send joystick values in IAD mode"""
-        asyncio.create_task(self.send_iad_cmd(joy_vals))
+    def send_TOD(self, joy_vals):
+        """Send joystick values in TOD mode"""
+        asyncio.create_task(self.send_TOD_cmd(joy_vals))
 
     def save_data(self, ):
         data = {"poses": self.poses,

@@ -186,7 +186,7 @@ class Robot():
     def __init__(self):
         self.lin_spd = 0.7  # nominal drive speed
         self.ang_spd = 0  # prev value ang_spd only when stuck
-        self.mtr_spds = [0, 0]  # [lin_spd, ang_spd] in IAD mode
+        self.mtr_spds = [0, 0]  # [lin_spd, ang_spd] in TOD mode
         self.run = True
         self.mode = 'IDL'  # Idle
         self.errors = []
@@ -265,7 +265,7 @@ class Robot():
                 self.prev_time = curr_time
                 continue
 
-            elif self.mode == 'IAD':  # InterActive Drive
+            elif self.mode == 'TOD':  # Tele-Op Drive
                 lin_spd, ang_spd = self.mtr_spds
                 motors.drive_motors(lin_spd, ang_spd)
 
@@ -412,7 +412,7 @@ async def command_handler(robot):
                     robot.goal_angle = goal_angle
                     robot.cum_angle = 0
                     robot.mode = 'TRA'
-                elif cmd == '!IAD':  # InterActive Drive
+                elif cmd == '!TOD':  # Tele-Op Drive
                     joy_vals = json.loads(bytestring[4:])
                     y, x = joy_vals
                     
@@ -420,8 +420,8 @@ async def command_handler(robot):
                     lin_spd = (128 - y) / 128
                     ang_spd = (128 - x) / 128
                     robot.mtr_spds = [lin_spd, ang_spd]
-                    send_json({"status": "IAD_READY"})
-                    robot.mode = 'IAD'
+                    send_json({"status": "TOD_READY"})
+                    robot.mode = 'TOD'
                 elif cmd == '!STP':
                     robot.stop()
                 elif cmd == '!END':
