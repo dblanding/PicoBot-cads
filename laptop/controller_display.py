@@ -97,7 +97,10 @@ class RobotDisplay:
                     except StopIteration:
                         print("No more drive instructions")
                 elif message["status"] == "TOD_READY":  # ready for next TOD cmd
-                    self.send_TOD(self.get_joystk_vals())
+                    if gamepad:
+                        self.send_TOD(self.get_joystk_vals())
+                    else:
+                        print("Gamepad not connected")
             if "pose" in message:
                 pose = message["pose"]
                 self.pose_list.append(pose)
