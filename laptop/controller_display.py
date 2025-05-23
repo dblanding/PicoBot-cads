@@ -264,9 +264,9 @@ class RobotDisplay:
         x = gamepad.get_axis_state('right_stick_x')
 
         # Don't send null values, which is what we get before first reading
-        if not y:
+        if y == None:
             y = 128
-        if not x:
+        if x == None:
             x = 128
         return y, x
 
