@@ -10,6 +10,7 @@ import pickle
 
 import arena
 from async_gamepad import AsyncGamepad
+from drive_instrux import instrux_list
 from geom2d import pt_coords
 from robot_ble_connection import BleConnection
 
@@ -18,10 +19,6 @@ OFFSETS = [19, 24, 15, 15, 15, 10, 20]
 
 # Saved data file
 data_file = "saved_data.pkl"
-
-instrux_list = [
-    {"!TOD": (128, 128), },
-    ]
 
 try:
     gamepad_path = '/dev/input/event17'
@@ -72,11 +69,11 @@ class RobotDisplay:
                 # Print current time w/ seconds (to hundredths)
                 now = datetime.now()
                 current_time = now.strftime("%H:%M:%S.%f")[:-4]
-                #print(current_time)
+                print(current_time)
 
                 # Print data from robot
                 message = json.loads(line)
-                #pprint(message)
+                pprint(message)
             except ValueError:
                 print("Error parsing JSON")
                 return
