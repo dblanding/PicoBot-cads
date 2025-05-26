@@ -4,7 +4,7 @@
 # json will struggle with too many decimal places
 pi = 3.1416
 
-wapo_list = [
+wapo_list0 = [
     (1.0, -0.5),
     (1.9, -1.5),
     (2.0, -2.7),
@@ -18,6 +18,16 @@ wapo_list = [
     (-1.8, -3.8),
     (-4, -3),
     ]
+
+wapo_list = [
+    (1.0, -0.5),
+    (1.9, -1.5),
+    (2.0, -2.8),
+    (1.0, -3.6),
+    (-1.8, -3.8),
+    (-4, -3),
+    ]
+
 
 wapo_list1 = [
     (1, -0.3),
@@ -40,5 +50,5 @@ instrux_list = [
 instrux_list = [
     {"!SWP": wapo_list,},
     {"!DWF": None,},
-    {"!TGH": pi/4,},
+    {"!TGH": 0.0,},
     ]

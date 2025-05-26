@@ -407,7 +407,7 @@ async def command_handler(robot):
                     robot.goal_heading = goal_hdg
                     robot.mode = 'TGH'
                 elif cmd == '!TRA':  # Turn in-place by Relative Angle
-                    incoming = json.loads(bytestring[4:])
+                    goal_angle = json.loads(bytestring[4:])
                     print(f"Goal Angle: {goal_angle}")
                     robot.goal_angle = goal_angle
                     robot.cum_angle = 0

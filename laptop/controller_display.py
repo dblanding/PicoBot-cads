@@ -13,6 +13,8 @@ from async_gamepad import AsyncGamepad
 from drive_instrux import instrux_list
 from geom2d import pt_coords
 from robot_ble_connection import BleConnection
+from find_open_sectors import FindOpenSectors
+from find_goal_point import find_goal_in_sector
 
 # Offset + sensor value = actual distance to robot center
 OFFSETS = [19, 24, 15, 15, 15, 10, 20]
@@ -57,6 +59,7 @@ class RobotDisplay:
         self.wapolistlen = None
         self.instrux_list = instrux_list
         self.instrux_gen = None
+        self.fos = None  # find open sectors
 
     def handle_close(self, _):
         self.closed = True
@@ -88,6 +91,19 @@ class RobotDisplay:
                         print("No more drive instructions")
             if "status" in message:  # robot has completed driving instruction
                 if message["status"] == "READY":
+                    if self.fos:
+                        all_sectors = self.fos.get_sectors()
+                        pprint(all_sectors)
+                        # cull sectors w/out detected first point
+                        # and which are too narrow
+                        selected = [sector for sector in all_sectors
+                                   if sector.get('first_dist') and
+                                   sector.get('nmbr_reads_wide') > 3]
+                        if len(selected) == 1:
+                            sector = selected[0]
+                            goal_point, half_width = find_goal_in_sector(sector)
+                            print(f"{goal_point = }, {half_width = }")
+                        self.fos = None
                     self.robot_is_ready = True
                     try:
                         self.drive(1)  # Continue to next drive instruction
@@ -98,11 +114,10 @@ class RobotDisplay:
                         self.send_TOD(self.get_joystk_vals())
                     else:
                         print("Gamepad not connected")
-            if "pose" in message:
+            if "pose" and "distances" in message:  # Data from robot
                 pose = message["pose"]
                 self.pose_list.append(pose)
                 self.poses = np.array(self.pose_list, dtype=np.float32)
-            if "distances" in message:
                 snsr_vals = message["distances"]
                 # Process distance data from VCSEL sensors
                 dist_vals = []
@@ -111,7 +126,7 @@ class RobotDisplay:
                     if snsr_vals[idx] < 1500:
                         dist = snsr_vals[idx] + OFFSETS[idx]
                         if dist > 1900:
-                            dist = 8000
+                            dist = 8100
                         dist_vals.append(dist)
                         rel_angle = pi/2 - idx * pi/6
                         xy_coords = pt_coords(pose, dist/1000, rel_angle)
@@ -144,6 +159,8 @@ class RobotDisplay:
                         elif idx == 6:
                             self.r_pnts_list.append(xy_coords)
                             self.r_pnts = np.array(self.r_pnts_list, dtype=np.float32)
+                if self.fos:
+                    self.fos.process_next(message)
 
     def draw(self):
         self.axes.clear()
@@ -196,17 +213,21 @@ class RobotDisplay:
                     print(f"Send point {point} to robot")
                     await self.send_waypoint(point)
             elif "!DW" in cmd:
-                # Send request w/ no data
+                # Send request w/ no value
                 if self.robot_is_ready:
                     await self.send_command(cmd)
                     self.robot_is_ready = False
             else:
-                # Send request w/ data
+                # Send request w/ value
                 if self.robot_is_ready or cmd == "!TOD":
                     reqst = cmd.encode() + (json.dumps(val) + "\n").encode()
                     #print(f"Sending Drive Instruction to robot: {reqst}")
                     await self.ble_connection.send_uart_data(reqst)
                     self.robot_is_ready = True
+            if cmd == "!TGH":
+                print("instantiate program to find open sectors")
+                self.fos = FindOpenSectors()
+                
         except StopIteration:
             print("No more Driving Instructions")
 

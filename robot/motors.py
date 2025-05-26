@@ -19,11 +19,11 @@ ena.freq(1_000)
 enb.freq(1_000)
 
 def get_trim_pot_val():
-    """Read pot, return value in range -0.1 to +0.1"""
+    """Read pot, return value in range -0.2 to +0.2"""
     
     pot_value = adc.read_u16()
-    # convert to value between -0.1 to +0.1
-    trim = (0.5 - pot_value / 65_536) / 5
+    # convert to value between -0.2 to +0.2
+    trim = (0.5 - pot_value / 65_536) / 2.5
     return trim
 
 def set_mtr_dirs(a_mode, b_mode):
