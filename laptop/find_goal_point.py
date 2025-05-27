@@ -14,6 +14,7 @@ def find_goal_in_sector(sector):
     pt2 = geom2d.pt_coords(pose2, d2, 0)
 
     goal_point = geom2d.midpoint(pt1, pt2)
+    goal_heading = (pose1[2] + pose2[2]) / 2  # This may not always work
 
     # make sure it's wide enough to drive from robot location (pt0)
     # pt0 found by avg of 2 poses (it wiggles during turn-in-place)
@@ -32,4 +33,15 @@ def find_goal_in_sector(sector):
 
     # distance between closer_pnt and pt3
     half_width = geom2d.p2p_dist(closer_pnt, pt3)
-    return goal_point, half_width    
+
+    # avoid difficulties with high-precision values and json
+    gpx, gpy = goal_point
+    gp = (round(gpx, 2), round(gpy, 2))
+    gh = round(goal_heading, 2)
+    hw = round(half_width, 2)
+
+    goal_dict = {"goal_point": gp,
+                 "goal_hdng": gh,
+                 "half_width": hw,
+                 }
+    return goal_dict

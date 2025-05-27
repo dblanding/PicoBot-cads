@@ -105,12 +105,23 @@ class RobotDisplay:
                                    sector.get('nmbr_reads_wide') > 3]
                         if len(selected) == 1:
                             sector = selected[0]
-                            goal_point, half_width = find_goal_in_sector(sector)
-                            print(f"{goal_point = }, {half_width = }")
-                        self.fos = None
-                        # turn to aim at goal_point (no fos)
-                        self.fos_enabled = False
-                        # await self.send_instruct("!TGH":(hdg_to_goal_pnt))
+                            goal_dict = find_goal_in_sector(sector)
+                            pprint(goal_dict)
+                            if goal_dict.get('half_width') >= .15:
+                                goal_hdng = goal_dict.get('goal_hdng')
+                                goal_point = goal_dict.get('goal_point')
+                                self.instrux_list = [
+                                    {'!TGH': goal_hdng,},
+                                    {'!SWP': [goal_point,],},
+                                    {"!DWF": None,},
+                                    {'!TGH': 0.8,},
+                                    {'!SWP': [(-1.4, -1.6), (-1, -0.3), (0, 0),],},
+                                    {"!DWF": None,},
+                                    ]
+                                self.load_instrux()
+                                self.fos = None
+                                self.fos_enabled = False
+                                #self.drive(1)
                     self.robot_is_ready = True
                     self.drive(1)  # Continue to next drive instruction
                 elif message["status"] == "TOD_READY":  # ready for next TOD cmd
@@ -232,8 +243,8 @@ class RobotDisplay:
                     await self.ble_connection.send_uart_data(reqst)
                     self.robot_is_ready = True
             if cmd == "!TGH":
-                print("instantiate program to find open sectors")
                 if self.fos_enabled:
+                    print("instantiate program to find open sectors")
                     self.fos = FindOpenSectors()
                 
         except StopIteration:
