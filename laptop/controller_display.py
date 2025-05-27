@@ -59,12 +59,19 @@ class RobotDisplay:
         self.wapolistlen = None
         self.instrux_list = instrux_list
         self.instrux_gen = None
+        self.fos_enabled = True
         self.fos = None  # find open sectors
 
     def handle_close(self, _):
         self.closed = True
 
     def handle_data(self, data):
+        """
+        This is the entry point for arriving bytestring message (data).
+        As messages (each with a trailing '\n') arrive sequentially, they
+        are appended onto self.buffer. Individual messages are retrieved
+        by splitting on the first '\n'. Messages are dictionaries.
+        """
         self.buffer += data.decode()
         while "\n" in self.buffer:
             line, self.buffer = self.buffer.split("\n", 1)
@@ -84,11 +91,8 @@ class RobotDisplay:
                 count = message["wapolist"]
                 if count == self.wapolistlen:
                     print(f"Robot has received all {count} waypoints")
-                    try:
-                        self.drive(1)  # Continue to next drive instruction
-                        self.wapolistlen = None
-                    except StopIteration:
-                        print("No more drive instructions")
+                    self.drive(1)  # Continue to next drive instruction
+                    self.wapolistlen = None
             if "status" in message:  # robot has completed driving instruction
                 if message["status"] == "READY":
                     if self.fos:
@@ -104,11 +108,11 @@ class RobotDisplay:
                             goal_point, half_width = find_goal_in_sector(sector)
                             print(f"{goal_point = }, {half_width = }")
                         self.fos = None
+                        # turn to aim at goal_point (no fos)
+                        self.fos_enabled = False
+                        # await self.send_instruct("!TGH":(hdg_to_goal_pnt))
                     self.robot_is_ready = True
-                    try:
-                        self.drive(1)  # Continue to next drive instruction
-                    except StopIteration:
-                        print("No more drive instructions")
+                    self.drive(1)  # Continue to next drive instruction
                 elif message["status"] == "TOD_READY":  # ready for next TOD cmd
                     if gamepad:
                         self.send_TOD(self.get_joystk_vals())
@@ -188,19 +192,22 @@ class RobotDisplay:
         if self.f_pnts is not None:
             self.axes.scatter(self.f_pnts[:,0], self.f_pnts[:,1], color="yellow")
         
-    async def send_TOD_cmd(self, joy_vals):
-        reqst = "!TOD".encode() + (json.dumps(joy_vals) + "\n").encode()
-        await self.ble_connection.send_uart_data(reqst)
-
     def load_instrux(self, ):
         print("Creating new instrux generator from self.instrux_list")
         self.instrux_gen = (dd for dd in self.instrux_list)
+
+    #### asyncio awaitable functions
+    async def send_TOD_cmd(self, joy_vals):
+        """Send Tele-Op Drive command and values."""
+        reqst = "!TOD".encode() + (json.dumps(joy_vals) + "\n").encode()
+        await self.ble_connection.send_uart_data(reqst)
 
     async def send_waypoint(self, point):
         wp_req = "!SWP".encode() + (json.dumps(point) + "\n").encode()
         await self.ble_connection.send_uart_data(wp_req)
 
     async def send_instruct(self, ):
+        """Send next instruction in self.instrux_gen."""
         try:
             instruction = next(self.instrux_gen)
             (cmd, val), = instruction.items()
@@ -226,38 +233,57 @@ class RobotDisplay:
                     self.robot_is_ready = True
             if cmd == "!TGH":
                 print("instantiate program to find open sectors")
-                self.fos = FindOpenSectors()
+                if self.fos_enabled:
+                    self.fos = FindOpenSectors()
                 
         except StopIteration:
             print("No more Driving Instructions")
 
-    async def send_TOD_instruct(self, joy_vals):
-        reqst = "!TOD".encode() + (json.dumps(joy_vals) + "\n").encode()
-        #print(f"Sending Drive Instruction to robot: {reqst}")
-        await self.ble_connection.send_uart_data(reqst)
-
     async def send_command(self, code):
+        """Send 'bare' command (no associated value)"""
         request = (code + "\n").encode('utf8')
         print(f"Sending request: {request}")
         await self.ble_connection.send_uart_data(request)
 
+    #### Calback functions for buttons on matplotlib display
     def drive(self, _):
+        """Regular function for creating ayncio task to process next
+        instruction from self.instrux_gen.
+        """
         self.button_task = asyncio.create_task(self.send_instruct())
 
     def load(self, _):
+        """
+        Superfluous function: just calls another function.
+        Args: One (unused) parameter because matplotlib calls it with one.
+        """
+
         self.button_task = self.load_instrux()
 
     def run(self, _):
+        """
+        Regular function for creating ayncio task to send run cmd.
+        Args: One (unused) parameter because matplotlib calls it with one.
+        """
         self.button_task = asyncio.create_task(self.send_command("!RUN"))
 
     def stop(self, _):
+        """
+        Regular function for creating ayncio task to send stop cmd.
+        Args: One (unused) parameter because matplotlib calls it with one.
+        """
         self.button_task = asyncio.create_task(self.send_command("!STP"))
 
     def send_TOD(self, joy_vals):
-        """Send joystick values in TOD mode"""
+        """
+        Regular function for creating ayncio task to send joystick values
+        to robot in Tele-Op Driving (TOD) mode.
+        Args: (Y, X) tuple of int values from 0 to 255, (128 @ ctr)
+        """
         asyncio.create_task(self.send_TOD_cmd(joy_vals))
 
     def save_data(self, ):
+        """Pickle robot data from current run and save to file."""
         data = {"poses": self.poses,
                 "r_pnts": self.r_pnts,
                 "r30_pnts": self.r30_pnts,
