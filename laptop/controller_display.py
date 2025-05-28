@@ -108,13 +108,14 @@ class RobotDisplay:
                             goal_dict = find_goal_in_sector(sector)
                             pprint(goal_dict)
                             if goal_dict.get('half_width') >= .15:
-                                goal_hdng = goal_dict.get('goal_hdng')
+                                goal_hdng = goal_dict.get('goal_hdng')  # radians
+                                goal_hdng_deg = int(goal_hdng * 180 / pi)  # deg
                                 goal_point = goal_dict.get('goal_point')
                                 self.instrux_list = [
-                                    {'!TGH': goal_hdng,},
+                                    {'!TGH': goal_hdng_deg,},
                                     {'!SWP': [goal_point,],},
                                     {"!DWF": None,},
-                                    {'!TGH': 0.8,},
+                                    {'!TGH': 45,},
                                     {'!SWP': [(-1.4, -1.6), (-1, -0.3), (0, 0),],},
                                     {"!DWF": None,},
                                     ]

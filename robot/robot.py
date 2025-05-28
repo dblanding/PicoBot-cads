@@ -402,12 +402,12 @@ async def command_handler(robot):
                         robot.wapolist = []
                         robot.waypoint = next(robot.wapogen)
                 elif cmd == '!TGH':  # Turn in-place to Goal Heading
-                    goal_hdg = json.loads(bytestring[4:])
+                    goal_hdg = json.loads(bytestring[4:]) * pi / 180
                     print(f"Goal Heading: {goal_hdg}")
                     robot.goal_heading = goal_hdg
                     robot.mode = 'TGH'
                 elif cmd == '!TRA':  # Turn in-place by Relative Angle
-                    goal_angle = json.loads(bytestring[4:])
+                    goal_angle = json.loads(bytestring[4:]) * pi / 180
                     print(f"Goal Angle: {goal_angle}")
                     robot.goal_angle = goal_angle
                     robot.cum_angle = 0
