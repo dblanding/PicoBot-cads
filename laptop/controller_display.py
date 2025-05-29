@@ -125,7 +125,6 @@ class RobotDisplay:
                                 self.load_instrux()
                                 self.fos = None
                                 self.fos_enabled = False
-                                #self.drive(1)
                     self.robot_is_ready = True
                     self.drive(1)  # Continue to next drive instruction
                 elif message["status"] == "TOD_READY":  # ready for next TOD cmd
@@ -272,7 +271,6 @@ class RobotDisplay:
         Superfluous function: just calls another function.
         Args: One (unused) parameter because matplotlib calls it with one.
         """
-
         self.button_task = self.load_instrux()
 
     def run(self, _):
@@ -324,7 +322,7 @@ class RobotDisplay:
 
     def get_joystk_vals(self):
         """Get joystick values (0 to 255 full scale)"""
-        y = gamepad.get_axis_state('right_stick_y')
+        y = gamepad.get_axis_state('left_stick_y')
         x = gamepad.get_axis_state('right_stick_x')
 
         # Don't send null values, which is what we get before first reading
