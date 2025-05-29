@@ -57,7 +57,10 @@ class RobotDisplay:
         self.fwd_pnts = None
         self.robot_is_ready = True
         self.wapolistlen = None
-        self.instrux_list = instrux_list
+        if gamepad:
+            self.instrux_list = [{"!TOD": (128, 128),},]
+        else:
+            self.instrux_list = instrux_list
         self.instrux_gen = None
         self.fos_enabled = True
         self.fos = None  # find open sectors

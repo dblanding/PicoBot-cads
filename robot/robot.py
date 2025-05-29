@@ -366,7 +366,7 @@ class Robot():
                         })
 
             led.toggle()
-            await asyncio.sleep(0.1)
+            await asyncio.sleep(0.05)
 
 
 async def command_handler(robot):
@@ -430,7 +430,7 @@ async def command_handler(robot):
             except Exception as e:
                 robot.errors.append(e)
         
-        await asyncio.sleep(0.1)
+        await asyncio.sleep(0.05)
 
 
 robot = Robot()
