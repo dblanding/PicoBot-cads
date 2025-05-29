@@ -13,8 +13,10 @@ class AsyncGamepad:
 
         # Mapping from evdev axis codes to descriptive names
         self.axis_map = {
+            ecodes.ABS_X: 'left_stick_x',
             ecodes.ABS_Y: 'left_stick_y',
             ecodes.ABS_RX: 'right_stick_x',
+            ecodes.ABS_RY: 'right_stick_y',
             }
 
     async def read_events(self):
