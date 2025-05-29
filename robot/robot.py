@@ -269,25 +269,6 @@ class Robot():
                 lin_spd, ang_spd = self.mtr_spds
                 motors.drive_motors(lin_spd, ang_spd)
 
-            elif self.mode == 'TRA':  # Turn in place by a Relative Angle (+ is CCW)
-                delta_time = (curr_time - self.prev_time)/1000  # (sec)
-                self.prev_time = curr_time
-                self.cum_angle += (gz * (delta_time))
-                if self.goal_angle > 0:
-                    if self.cum_angle < self.goal_angle:
-                        motors.drive_motors(0, MAX_ANG_SPD)
-                    else:  # Completed CCW turn to rel goal angle
-                        self.stop()
-                        send_json({"status": "READY"})
-                        self.mode = 'IDL'
-                elif self.goal_angle <= 0:
-                    if self.cum_angle > self.goal_angle:
-                        motors.drive_motors(0, -MAX_ANG_SPD)
-                    else:  # Completed CW turn to rel goal angle
-                        self.stop()
-                        send_json({"status": "READY"})
-                        self.mode = 'IDL'
-
             elif self.mode == 'TGH':  # Turn in place to Global Heading
                 ang_spd = self.turn_to_heading(self.goal_heading, gz, yaw)
                 motors.drive_motors(0, ang_spd)
@@ -406,12 +387,6 @@ async def command_handler(robot):
                     print(f"Goal Heading: {goal_hdg}")
                     robot.goal_heading = goal_hdg
                     robot.mode = 'TGH'
-                elif cmd == '!TRA':  # Turn in-place by Relative Angle
-                    goal_angle = json.loads(bytestring[4:]) * pi / 180
-                    print(f"Goal Angle: {goal_angle}")
-                    robot.goal_angle = goal_angle
-                    robot.cum_angle = 0
-                    robot.mode = 'TRA'
                 elif cmd == '!TOD':  # Tele-Op Drive
                     joy_vals = json.loads(bytestring[4:])
                     y, x = joy_vals
