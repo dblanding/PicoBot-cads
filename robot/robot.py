@@ -26,6 +26,10 @@ import qwiic_otos
 import time
 import VL53L0X
 from dist_snsr_array import DistSnsrArray
+from js_client import JS_Client
+
+# Instantiate joystick client
+jsc = JS_Client()
 
 D_GAIN = 0.5  # Gain of Derivative feedback term
 
@@ -35,7 +39,7 @@ uart = UART(0, 9600)
 uart.init(tx=Pin(0), rx=Pin(1), bits=8, parity=None, stop=1, timeout=10)
 
 # setup onboard LED
-led = machine.Pin("LED", machine.Pin.OUT)
+led = Pin("LED", Pin.OUT)
 
 # Initialize I2C1 using qwiic library
 i2c1 = qwiic_i2c.get_i2c_driver(sda=14, scl=15, freq=100000)
@@ -186,7 +190,6 @@ class Robot():
     def __init__(self):
         self.lin_spd = 0.7  # nominal drive speed
         self.ang_spd = 0  # prev value ang_spd only when stuck
-        self.mtr_spds = [0, 0]  # [lin_spd, ang_spd] in TOD mode
         self.run = True
         self.mode = 'IDL'  # Idle
         self.errors = []
@@ -248,7 +251,20 @@ class Robot():
         self.run = False
 
     async def main(self):
+
+        # Create task to start Joystick Client 
+        js_task = asyncio.create_task(jsc.start())
+
         while self.run:
+            # Get joystick values (if any)
+            js_vals = jsc.get_js_vals()
+            if js_vals:  # not None
+                js_x, js_y, js_z = js_vals
+                x, y = -js_x, js_y  #  range: -127 <-> +127
+                lin_spd = js_y / 127
+                ang_spd = -js_x / 127
+                motors.drive_motors(lin_spd, ang_spd)
+            
             # read distances from VCSEL sensors
             distances = dsa.read_all()
 
@@ -264,10 +280,6 @@ class Robot():
             if not self.prev_time:  # initialize
                 self.prev_time = curr_time
                 continue
-
-            elif self.mode == 'TOD':  # Tele-Op Drive
-                lin_spd, ang_spd = self.mtr_spds
-                motors.drive_motors(lin_spd, ang_spd)
 
             elif self.mode == 'TGH':  # Turn in place to Global Heading
                 ang_spd = self.turn_to_heading(self.goal_heading, gz, yaw)
@@ -387,16 +399,6 @@ async def command_handler(robot):
                     print(f"Goal Heading: {goal_hdg}")
                     robot.goal_heading = goal_hdg
                     robot.mode = 'TGH'
-                elif cmd == '!TOD':  # Tele-Op Drive
-                    joy_vals = json.loads(bytestring[4:])
-                    y, x = joy_vals
-                    
-                    # Convert joystick vals to lin_spd, ang_spd
-                    lin_spd = (128 - y) / 128
-                    ang_spd = (128 - x) / 128
-                    robot.mtr_spds = [lin_spd, ang_spd]
-                    send_json({"status": "TOD_READY"})
-                    robot.mode = 'TOD'
                 elif cmd == '!STP':
                     robot.stop()
                 elif cmd == '!END':

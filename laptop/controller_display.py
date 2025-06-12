@@ -9,7 +9,6 @@ import numpy as np
 import pickle
 
 import arena
-from async_gamepad import AsyncGamepad
 from drive_instrux import instrux_list
 from geom2d import pt_coords
 from robot_ble_connection import BleConnection
@@ -22,11 +21,6 @@ OFFSETS = [19, 24, 15, 15, 15, 10, 20]
 # Saved data file
 data_file = "saved_data.pkl"
 
-try:
-    gamepad_path = '/dev/input/event17'
-    gamepad = AsyncGamepad(gamepad_path)
-except FileNotFoundError:
-    gamepad = None
 
 class RobotDisplay:
     def __init__(self):
@@ -57,10 +51,7 @@ class RobotDisplay:
         self.fwd_pnts = None
         self.robot_is_ready = True
         self.wapolistlen = None
-        if gamepad:
-            self.instrux_list = [{"!TOD": (128, 128),},]
-        else:
-            self.instrux_list = instrux_list
+        self.instrux_list = instrux_list
         self.instrux_gen = None
         self.fos_enabled = True
         self.fos = None  # find open sectors
@@ -127,11 +118,6 @@ class RobotDisplay:
                                 self.fos_enabled = False
                     self.robot_is_ready = True
                     self.drive(1)  # Continue to next drive instruction
-                elif message["status"] == "TOD_READY":  # ready for next TOD cmd
-                    if gamepad:
-                        self.send_TOD(self.get_joystk_vals())
-                    else:
-                        print("Gamepad not connected")
             if "pose" and "distances" in message:  # Data from robot
                 pose = message["pose"]
                 self.pose_list.append(pose)
@@ -211,11 +197,6 @@ class RobotDisplay:
         self.instrux_gen = (dd for dd in self.instrux_list)
 
     #### asyncio awaitable functions
-    async def send_TOD_cmd(self, joy_vals):
-        """Send Tele-Op Drive command and values."""
-        reqst = "!TOD".encode() + (json.dumps(joy_vals) + "\n").encode()
-        await self.ble_connection.send_uart_data(reqst)
-
     async def send_waypoint(self, point):
         wp_req = "!SWP".encode() + (json.dumps(point) + "\n").encode()
         await self.ble_connection.send_uart_data(wp_req)
@@ -240,7 +221,7 @@ class RobotDisplay:
                     self.robot_is_ready = False
             else:
                 # Send request w/ value
-                if self.robot_is_ready or cmd == "!TOD":
+                if self.robot_is_ready:
                     reqst = cmd.encode() + (json.dumps(val) + "\n").encode()
                     #print(f"Sending Drive Instruction to robot: {reqst}")
                     await self.ble_connection.send_uart_data(reqst)
@@ -287,14 +268,6 @@ class RobotDisplay:
         """
         self.button_task = asyncio.create_task(self.send_command("!STP"))
 
-    def send_TOD(self, joy_vals):
-        """
-        Regular function for creating ayncio task to send joystick values
-        to robot in Tele-Op Driving (TOD) mode.
-        Args: (Y, X) tuple of int values from 0 to 255, (128 @ ctr)
-        """
-        asyncio.create_task(self.send_TOD_cmd(joy_vals))
-
     def save_data(self, ):
         """Pickle robot data from current run and save to file."""
         data = {"poses": self.poses,
@@ -309,39 +282,9 @@ class RobotDisplay:
         with open(data_file, 'wb') as file:
             pickle.dump(data, file)
 
-    async def start_gamepad(self):
-        try:
-            await gamepad.start()
-        except FileNotFoundError:
-            print(f"Error: Gamepad device not found at {gamepad_path}")
-        except Exception as e:
-            print(f"Error: {e}")
-        finally:
-            if gamepad.running:
-                await gamepad.stop()
-
-    def get_joystk_vals(self):
-        """Get joystick values (0 to 255 full scale)"""
-        y = gamepad.get_axis_state('left_stick_y')
-        x = gamepad.get_axis_state('right_stick_x')
-
-        # Don't send null values, which is what we get before first reading
-        if y == None:
-            y = 128
-        if x == None:
-            x = 128
-        return y, x
-
     async def main(self):
         plt.ion()
 
-        if gamepad:
-            try:
-                print(f"Listening for events from {gamepad.device.name}...")
-                task = asyncio.create_task(self.start_gamepad())
-            finally:
-                await gamepad.stop()
-        
         await self.ble_connection.connect()
         try:
             self.fig.canvas.mpl_connect("close_event", self.handle_close)
